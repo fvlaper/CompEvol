@@ -14,15 +14,18 @@ function [ x, f, g, h ] = Flavio( ncal, nvar )
 %       - g: vetor restrição de desigualdade avaliado no ponto x;
 %       - h: vetor restrição de igualdade avaliado no ponto x.
 
-pop = popinit(3,3,-5.12,5.12);
+pop = popinit(10,3,-5.12,5.12);
+pop = [pop fitness(@fitness_desc, @rastrigin, @rastrigin_le, @rastrigin_eq, 10, 10, 1.2, pop)];
 
-x = [1,1,1];
-f = pop;
+x = 0;
+f = 0;
 %g = rastrigin(pop);
-g = fmod(@rastrigin, @rastrigin_le, @rastrigin_eq, 10, 10, pop);
-h = fitness_desc(@rastrigin, @rastrigin_le, @rastrigin_eq, 10, 10, 1.2, pop);
+%g = fmod(@rastrigin, @rastrigin_le, @rastrigin_eq, 10, 10, pop);
+g = pop;
+%h = [pop fitness(@fitness_desc, @rastrigin, @rastrigin_le, @rastrigin_eq, 10, 10, 1.2, pop)];
 %h = restr_desig(pop);
 %h = rastrigin_eq(pop);
+h = roleta(pop);
 
 end
 
@@ -42,6 +45,28 @@ function [pop] = popinit ( npop, nvar, xmin, xmax )
 
 pop = xmin * ones(npop,nvar) + (xmax - xmin) * rand(npop,nvar);
 
+end
+
+function [d] = fitness(ft, f, gle, geq, r, s, n, pop)
+%FITNESS Função de fitness.
+%   Calcula a fitness dos indivíduos da população. Esta função é
+%   apenas um "stub" que recebe a função de fitness específica a
+%   utilizar no cálculo.
+%
+%   Parâmetros de entrada:
+%       - ft: handle da função de fitness;
+%       - f: handle da função de otimização original;
+%       - gle: handle da função de restrição de desigualdade;
+%       - geq: handle da função de restrição de igualdade;
+%       - r: parâmetro de penalidade para a restrição de desigualdade;
+%       - s: parâmetro de penalidade para a restrição de igualdade;
+%       - n: parâmetro de escalonamento para a inversão;
+%       - pop: array contendo a polulação (um indivíduo por linha).
+%
+%   Parâmetros de saída:
+%       - d: valor da fitness para cada indivíduo (vetor coluna).
+
+d = ft(f, gle, geq, r, s, n, pop);
 end
 
 function [d] = fitness_inv(f, gle, geq, r, s, n, pop)
@@ -84,7 +109,6 @@ function [d] = fitness_desc(f, gle, geq, r, s, k, pop)
 
 h = fmod(f, gle, geq, r, s, pop);
 cmax = k * sum(h) / size(h,1);
-display(cmax);
 d = max(zeros(size(h)), (cmax-h));
 end
 
@@ -108,6 +132,40 @@ function [h] = fmod (f, gle, geq, r, s, pop)
 h = f(pop) ...                                             % func. original
   + r * sum((max(zeros(size(pop)), gle(pop)) .^ 2) ,2) ... % desigualdades
   + s * sum(geq(pop) .^ 2, 2);                             % igualdades
+end
+
+function [pais] = roleta(pop)
+%ROLETA Seleção pelo método da roleta.
+%   Seleciona os pais para a próxima geração pelo método da roleta.
+%
+%   Parâmetros de entrada:
+%       - pop: array contendo a população (supõe-se que a última
+%         coluna contém a fitness do indivíduo).
+%
+%   Parâmetros de saída:
+%       - pais: população de pais selecionados para os procedimentos
+%         genéticos seguintes.
+
+npop = size(pop,1);                    % tamanho da população
+fitcol = size(pop,2);                  % coluna com o valor da fitness
+totfitness = sum(pop(:,fitcol));       % fitness total
+pais = zeros(size(pop));               % pais selecionados
+
+% Loop de seleção
+for n = 1:npop
+    r = totfitness * rand(); % valor do lance    
+    i = 1;                   % índice do indivíduo selecionado
+    s = pop(1,fitcol);       % soma acumulada
+    while s < r
+        i = i + 1;
+        s = s + pop(i,fitcol);
+    end
+    
+    pais(n,:) = pop(i,:);
+    display(i);
+        
+end
+
 end
 
 %------------------------------------------------------------------------%
