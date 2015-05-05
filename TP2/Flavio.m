@@ -14,18 +14,25 @@ function [ x, f, g, h ] = Flavio( ncal, nvar )
 %       - g: vetor restrição de desigualdade avaliado no ponto x;
 %       - h: vetor restrição de igualdade avaliado no ponto x.
 
-pop = popinit(10,3,-5.12,5.12);
-%pop = [pop fitness(@fitness_desc, @rastrigin, @rastrigin_le, @rastrigin_eq, 10, 10, 1.2, pop)];
+% Estabelecimento dos parametros iniciais
+npop = 10;                % número de indivíduos na população.
+ngen = (ncal / npop) - 1; % número de gerações. Calculado a partir
+                          % do número máximo de cálculos da função de
+                          % fitness, considerando npop cálculos por
+                          % geração, mais npop cálculos para a população
+                          % inicial.
+                          
+f   = @rastrigin;         % Handle da função objetivo.
+gle = @rastrigin_le;      % Handle da função de restrição de desigualdade.
+geq = @rastrigin_eq;      % Handle da função de restrição de igualdade.
+xmin = -5.12;             % Valores de contorno para as variáveis
+xmax = 5.12;              % de decisão.
+                          
+% Estabelecimento da população inicial.
+pop = popinit(npop,nvar,xmin,xmax);
 
-[x, f, g, h] = ga(pop,1,1, @fitness_desc, @rastrigin, @rastrigin_le, @rastrigin_eq, 10, 10, 1.2);
-
-%g = rastrigin(pop);
-%g = fmod(@rastrigin, @rastrigin_le, @rastrigin_eq, 10, 10, pop);
-%g = pop;
-%h = [pop fitness(@fitness_desc, @rastrigin, @rastrigin_le, @rastrigin_eq, 10, 10, 1.2, pop)];
-%h = restr_desig(pop);
-%h = rastrigin_eq(pop);
-%h = roleta(pop);
+% Execução do algoritmo genético para otimização.
+[x, f, g, h] = ga(pop, ngen, f, gle, geq);
 
 end
 
@@ -47,137 +54,16 @@ pop = xmin * ones(npop,nvar) + (xmax - xmin) * rand(npop,nvar);
 
 end
 
-function [d,fo,gleo,geqo] = fitness(ft, f, gle, geq, r, s, n, pop)
-%FITNESS Função de fitness.
-%   Calcula a fitness dos indivíduos da população. Esta função é
-%   apenas um "stub" que recebe a função de fitness específica a
-%   utilizar no cálculo.
-%
-%   Parâmetros de entrada:
-%       - ft: handle da função de fitness;
-%       - f: handle da função de otimização original;
-%       - gle: handle da função de restrição de desigualdade;
-%       - geq: handle da função de restrição de igualdade;
-%       - r: parâmetro de penalidade para a restrição de desigualdade;
-%       - s: parâmetro de penalidade para a restrição de igualdade;
-%       - n: parâmetro de escalonamento da função de fitness;
-%       - pop: array contendo a polulação (um indivíduo por linha).
-%
-%   Parâmetros de saída:
-%       - d: valor da fitness para cada indivíduo (vetor coluna);
-%       - fo: valor da função de otimização original
-%         para cada indivíduo (vetor coluna);
-%       - gleo: valores da função de restrição de desigualdade
-%         (npop linhas, nvar colunas);
-%       - geqo: valores da função de restrição de igualdade
-%         (npop linhas, nvar colunas). 
-
-[d,fo,gleo,geqo] = ft(f, gle, geq, r, s, n, pop);
-end
-
-function [d,fo,gleo,geqo] = fitness_inv(f, gle, geq, r, s, n, pop)
-%FITNESS_INV Função de fitness pelo método de inversão.
-%   Calcula a fitness dos indivíduos da população pelo método de
-%   inversão (transformando um problema de minimização em maximização).
-%
-%   Parâmetros de entrada:
-%       - f: handle da função de otimização original;
-%       - gle: handle da função de restrição de desigualdade;
-%       - geq: handle da função de restrição de igualdade;
-%       - r: parâmetro de penalidade para a restrição de desigualdade;
-%       - s: parâmetro de penalidade para a restrição de igualdade;
-%       - n: parâmetro de escalonamento para a inversão;
-%       - pop: array contendo a polulação (um indivíduo por linha).
-%
-%   Parâmetros de saída:
-%       - d: valor da fitness para cada indivíduo (vetor coluna);
-%       - fo: valor da função de otimização original
-%         para cada indivíduo (vetor coluna);
-%       - gleo: valores da função de restrição de desigualdade
-%         (npop linhas, nvar colunas);
-%       - geqo: valores da função de restrição de igualdade
-%         (npop linhas, nvar colunas). 
-
-[h,fo,gleo,geqo] = fmod(f, gle, geq, r, s, pop);
-d = 1 ./ (h - (min(h) - (10 ^ -n)));
-end
-
-function [d,fo,gleo,geqo] = fitness_desc(f, gle, geq, r, s, k, pop)
-%FITNESS_DESC Função de fitness pelo método de deslocamento.
-%   Calcula a fitness dos indivíduos da população pelo método de
-%   deslocamento (transformando um problema de minimização em maximização).
-%
-%   Parâmetros de entrada:
-%       - f: handle da função de otimização original;
-%       - gle: handle da função de restrição de desigualdade;
-%       - geq: handle da função de restrição de igualdade;
-%       - r: parâmetro de penalidade para a restrição de desigualdade;
-%       - s: parâmetro de penalidade para a restrição de igualdade;
-%       - k: parâmetro de escalonamento para o deslocamento;
-%       - pop: array contendo a polulação (um indivíduo por linha).
-%
-%   Parâmetros de saída:
-%       - d: valor da fitness para cada indivíduo (vetor coluna);
-%       - fo: valor da função de otimização original
-%         para cada indivíduo (vetor coluna);
-%       - gleo: valores da função de restrição de desigualdade
-%         (npop linhas, nvar colunas);
-%       - geqo: valores da função de restrição de desigualdade
-%         (npop linhas, nvar colunas). 
-
-[h,fo,gleo,geqo] = fmod(f, gle, geq, r, s, pop);
-cmax = k * sum(h) / size(h,1);
-d = max(zeros(size(h)), (cmax-h));
-end
-
-function [h,fo,gleo,geqo] = fmod (f, gle, geq, r, s, pop)
-%FMOD Função de otimização modificada.
-%   Calcula o valor da função de otimização (por indivíduo) modificada
-%   para um problema irrestrito.
-%
-%   Parâmetros de entrada:
-%       - f: handle da função de otimização original;
-%       - gle: handle da função de restrição de desigualdade;
-%       - geq: handle da função de restrição de igualdade;
-%       - r: parâmetro de penalidade para a restrição de desigualdade;
-%       - s: parâmetro de penalidade para a restrição de igualdade;
-%       - pop: array contendo a polulação (um indivíduo por linha).
-%
-%   Parâmetros de saída:
-%       - h: valor da função de otimização modificada
-%         para cada indivíduo (vetor coluna);
-%       - fo: valor da função de otimização original
-%         para cada indivíduo (vetor coluna).
-%       - gleo: valores da função de restrição de desigualdade
-%         (npop linhas, nvar colunas);
-%       - geqo: valores da função de restrição de igualdade
-%         (npop linhas, nvar colunas). 
-
-fo = f(pop);
-gleo = gle(pop);
-geqo = geq(pop);
-
-h = fo ...                                             % func. original
-  + r * sum((max(zeros(size(pop)), gleo) .^ 2) ,2) ... % desigualdades
-  + s * sum(geqo .^ 2, 2);                             % igualdades
-end
-
-function [ x, f, g, h ] = ga(pop,ngen,nelite,ft,f,gle,geq,r,s,n)
+function [ x, f, g, h ] = ga(pop,ngen,f,gle,geq)
 %GA Função principal do algoritmo genético.
 %   Executa o algoritmo genético (ga) para otimização da função objetivo.
 %
 %   Parâmetros de entrada:
 %       - pop: array contendo a população inicial;
 %       - ngen: número de gerações a processar;
-%       - nelite: número de elementos da elite (preservados para a
-%         próxima geração);
-%       - ft: handle da função de fitness;
 %       - f: handle da função de otimização original;
 %       - gle: handle da função de restrição de desigualdade;
-%       - geq: handle da função de restrição de igualdade;
-%       - r: parâmetro de penalidade para a restrição de desigualdade;
-%       - s: parâmetro de penalidade para a restrição de igualdade;
-%       - n: parâmetro de escalonamento da função de fitness.
+%       - geq: handle da função de restrição de igualdade.
 %
 %   Parâmetros de saída:
 %       - x: vetor das variáveis de decisão do melhor indivíduo;
@@ -192,19 +78,33 @@ function [ x, f, g, h ] = ga(pop,ngen,nelite,ft,f,gle,geq,r,s,n)
 %   - colunas (2*nvar+1) - (3*nvar): restrições de igualdade;
 %   - coluna (3*nvar+1): função objetivo;
 %   - coluna (3*nvar+2): fitness.
-columnsX = 1:size(pop,2);
-columnsG = size(pop,2)+1 : 2*size(pop,2);
-columnsH = 2*size(pop,2)+1 : 3*size(pop,2);
-columnF = 3*size(pop,2)+1;
-columnFit = 3*size(pop,2)+2;
+nvar = size(pop,2);
+columnsX  = 1:nvar;
+columnsG  = nvar+1 : 2*nvar;
+columnsH  = 2*nvar+1 : 3*nvar;
+columnF   = 3*nvar+1;
+%columnFit = 3*nvar+2;
 pais = [pop zeros(size(pop)) zeros(size(pop)) zeros(size(pop,1),2)];
 
+%Inicialização
+%       - nelite: número de elementos da elite (preservados para a
+%         próxima geração);
+nelite = 1;
+
+%       - ft: handle da função de fitness;
+ft = @fitness_desc;
+%ft = @fitness_inv;
+
+%       - r: parâmetro de penalidade para a restrição de desigualdade;
+%       - s: parâmetro de penalidade para a restrição de igualdade;
+%       - n: parâmetro de escalonamento da função de fitness.
+r = 10;
+s = 10;
+n = 1.2;
+
+display(pais);
 % Cálculos iniciais para a primeira população de pais
-[fit,fo,gleo,geqo] = fitness(ft, f, gle, geq, r, s, n, pop);
-pais(:,columnsG) = gleo;
-pais(:,columnsH) = geqo;
-pais(:,columnF) = fo;
-pais(:,columnFit) = fit;
+[pais] = fitness(ft, f, gle, geq, r, s, n, pais, nvar);
 display(pais);
 
 x = pais(1,columnsX);
@@ -212,6 +112,118 @@ f = pais(1,columnF);
 g = pais(1,columnsG);
 h = pais(1,columnsH);
 
+end
+
+function [pop] = fitness(ft, f, gle, geq, r, s, n, pop, nvar)
+%FITNESS Função de fitness.
+%   Calcula a fitness dos indivíduos da população. Esta função é
+%   apenas um "stub" que recebe a função de fitness específica a
+%   utilizar no cálculo.
+%
+%   Parâmetros de entrada:
+%       - ft: handle da função de fitness;
+%       - f: handle da função de otimização original;
+%       - gle: handle da função de restrição de desigualdade;
+%       - geq: handle da função de restrição de igualdade;
+%       - r: parâmetro de penalidade para a restrição de desigualdade;
+%       - s: parâmetro de penalidade para a restrição de igualdade;
+%       - n: parâmetro de escalonamento da função de fitness;
+%       - pop: array contendo a população (um indivíduo por linha);
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - pop: array de população com valores calculados.
+
+[pop] = ft(f, gle, geq, r, s, n, pop, nvar);
+end
+
+function [pop] = fitness_inv(f, gle, geq, r, s, n, pop, nvar)
+%FITNESS_INV Função de fitness pelo método de inversão.
+%   Calcula a fitness dos indivíduos da população pelo método de
+%   inversão (transformando um problema de minimização em maximização).
+%
+%   Parâmetros de entrada:
+%       - f: handle da função de otimização original;
+%       - gle: handle da função de restrição de desigualdade;
+%       - geq: handle da função de restrição de igualdade;
+%       - r: parâmetro de penalidade para a restrição de desigualdade;
+%       - s: parâmetro de penalidade para a restrição de igualdade;
+%       - n: parâmetro de escalonamento para a inversão;
+%       - pop: array contendo a polulação (um indivíduo por linha);
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - pop: array de população com valores calculados.
+
+columnFit = 3*nvar+2;
+
+[h,pop] = fmod(f, gle, geq, r, s, pop, nvar);
+d = 1 ./ (h - (min(h) - (10 ^ -n)));
+pop(:,columnFit) = d;
+end
+
+function [pop] = fitness_desc(f, gle, geq, r, s, k, pop, nvar)
+%FITNESS_DESC Função de fitness pelo método de deslocamento.
+%   Calcula a fitness dos indivíduos da população pelo método de
+%   deslocamento (transformando um problema de minimização em maximização).
+%
+%   Parâmetros de entrada:
+%       - f: handle da função de otimização original;
+%       - gle: handle da função de restrição de desigualdade;
+%       - geq: handle da função de restrição de igualdade;
+%       - r: parâmetro de penalidade para a restrição de desigualdade;
+%       - s: parâmetro de penalidade para a restrição de igualdade;
+%       - k: parâmetro de escalonamento para o deslocamento;
+%       - pop: array contendo a polulação (um indivíduo por linha);
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - pop: array de população com valores calculados.
+
+columnFit = 3*nvar+2;
+
+[h,pop] = fmod(f, gle, geq, r, s, pop, nvar);
+cmax = k * sum(h) / size(h,1);
+d = max(zeros(size(h)), (cmax-h));
+pop(:,columnFit) = d;
+end
+
+function [h,pop] = fmod (f, gle, geq, r, s, pop, nvar)
+%FMOD Função de otimização modificada.
+%   Calcula o valor da função de otimização (por indivíduo) modificada
+%   para um problema irrestrito.
+%
+%   Parâmetros de entrada:
+%       - f: handle da função de otimização original;
+%       - gle: handle da função de restrição de desigualdade;
+%       - geq: handle da função de restrição de igualdade;
+%       - r: parâmetro de penalidade para a restrição de desigualdade;
+%       - s: parâmetro de penalidade para a restrição de igualdade;
+%       - pop: array contendo a polulação (um indivíduo por linha);
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - h: valor da função de otimização modificada
+%         para cada indivíduo (vetor coluna);
+%       - pop: array de população com valores calculados.
+
+columnsG  = nvar+1 : 2*nvar;
+columnsH  = 2*nvar+1 : 3*nvar;
+columnF   = 3*nvar+1;
+
+vpop = pop(:, 1:nvar);
+
+fo = f(vpop);
+gleo = gle(vpop);
+geqo = geq(vpop);
+
+h = fo ...                                              % func. original
+  + r * sum((max(zeros(size(vpop)), gleo) .^ 2) ,2) ... % desigualdades
+  + s * sum(geqo .^ 2, 2);                              % igualdades
+
+pop(:,columnF) = fo;
+pop(:,columnsG) = gleo;
+pop(:,columnsH) = geqo;
 end
 
 %function [pais] = roleta(pop)
@@ -257,7 +269,7 @@ function [f] = rastrigin (pop)
 %   Calcula a função de Rastrigin para todos os indivíduos da população.
 %
 %   Parâmetros de entrada:
-%       - pop: array contendo a população (unm indivíduo por linha)
+%       - pop: array contendo a população (unm indivíduo por linha).
 %
 %   Parâmetros de saída:
 %       - f: valor da função de Rastrigin para cada indivíduo (vetor
@@ -273,7 +285,7 @@ function [g] = rastrigin_le (pop)
 %   de todos os indivíduos da população.
 %
 %   Parâmetros de entrada:
-%       - pop: array contendo a população (unm indivíduo por linha)
+%       - pop: array contendo a população (um indivíduo por linha).
 %
 %   Parâmetros de saída:
 %       - g: array contendo a função de restrição (npop linhas,
@@ -289,7 +301,7 @@ function [h] = rastrigin_eq (pop)
 %   de todos os indivíduos da população.
 %
 %   Parâmetros de entrada:
-%       - pop: array contendo a população (unm indivíduo por linha)
+%       - pop: array contendo a população (um indivíduo por linha).
 %
 %   Parâmetros de saída:
 %       - g: array contendo a função de restrição (npop linhas,
