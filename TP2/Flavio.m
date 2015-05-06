@@ -86,32 +86,60 @@ columnF   = 3*nvar+1;
 %columnFit = 3*nvar+2;
 pais = [pop zeros(size(pop)) zeros(size(pop)) zeros(size(pop,1),2)];
 
-%Inicialização
-%       - nelite: número de elementos da elite (preservados para a
-%         próxima geração);
-nelite = 1;
+%Parâmetros do algoritmo
+ft = @fitness_desc; % handle da função de fitness.
+fp = @fitpar_desc;  % handle da função de parâmetros da fitness.
 
-%       - ft: handle da função de fitness;
-ft = @fitness_desc;
-%ft = @fitness_inv;
+nelite = 1;         % número de elementos da elite (preservados para a
+                    % próxima geração).
 
-%       - r: parâmetro de penalidade para a restrição de desigualdade;
-%       - s: parâmetro de penalidade para a restrição de igualdade;
-%       - n: parâmetro de escalonamento da função de fitness.
-r = 10;
-s = 10;
-n = 1.2;
+% Parâmetros de penalidade para a função objetivo modificada para
+% problema sem restrições. A penalidade pelo desrespeito às restrições
+% aumenta a cada geração.
+r = 1 : ((10^8 - 1) / ngen) : 10^8;
+s = 1 : ((10^8 - 1) / ngen) : 10^8;
 
-display(pais);
+% Parâmetros da função de fitness
+fitpar = fp(ngen);
+
 % Cálculos iniciais para a primeira população de pais
-[pais] = fitness(ft, f, gle, geq, r, s, n, pais, nvar);
+[pais] = fitness(ft, f, gle, geq, r(1), s(1), fitpar(1), pais, nvar);
 display(pais);
+pais = popSort(pais,nvar);
+display(pais);
+
+% Inicialização da população de filhos
+filhos = zeros(size(pais,1)-nelite, size(pais,2));
+display(filhos);
+
+% Loop de evolução
+for g = 1 : ngen
+    % Guarda os indivíduos da elite
+    elite = pais(1 : nelite, :);
+    display(elite);
+end
 
 x = pais(1,columnsX);
 f = pais(1,columnF);
 g = pais(1,columnsG);
 h = pais(1,columnsH);
 
+end
+
+function [pop] = popSort(pop,nvar)
+%POPSORT Ordena o array de populaçao.
+%   Ordena o array de população do melhor para o pior indivíduo.
+%
+%   Parâmetros de entrada:
+%       - pop: array de população;
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - pop: array de população ordenado.
+
+columnFit = 3*nvar+2; % Coluna do valor de fitness.
+
+pop = sortrows(pop, -columnFit);
 end
 
 function [pop] = fitness(ft, f, gle, geq, r, s, n, pop, nvar)
@@ -162,6 +190,21 @@ d = 1 ./ (h - (min(h) - (10 ^ -n)));
 pop(:,columnFit) = d;
 end
 
+function [par] = fitpar_inv(ngen)
+%FITPAR_DESC Parâmetro para cálculo da fitness pelo método de inversão.
+%   Retorna, para cada geração, o valor do parâmetro n para o cálculo
+%   da fitness pelo método de deslocamento.
+%
+%   Parâmetros de entrada:
+%       - ngen: número de gerações.
+%
+%   Parâmetros de saída:
+%       - vetor com (ngen+1) valores do parâmetro (um para cada geração,
+%         mais a população inicial).
+
+par = 0.1 : ((1.0 - 0.1) / ngen) : 1.0;
+end
+
 function [pop] = fitness_desc(f, gle, geq, r, s, k, pop, nvar)
 %FITNESS_DESC Função de fitness pelo método de deslocamento.
 %   Calcula a fitness dos indivíduos da população pelo método de
@@ -186,6 +229,23 @@ columnFit = 3*nvar+2;
 cmax = k * sum(h) / size(h,1);
 d = max(zeros(size(h)), (cmax-h));
 pop(:,columnFit) = d;
+end
+
+function [par] = fitpar_desc(ngen)
+%FITPAR_DESC Parâmetro para cálculo da fitness pelo método de deslocamento.
+%   Retorna, para cada geração, o valor do parâmetro K para o cálculo
+%   da fitness pelo método de deslocamento. Será utilizado um valor
+%   fixo para todas as gerações.
+%
+%   Parâmetros de entrada:
+%       - ngen: número de gerações.
+%
+%   Parâmetros de saída:
+%       - vetor com (ngen+1) valores do parâmetro (um para cada geração,
+%         mais a população inicial).
+
+k = 1.2; % Valor fixo
+par = k * ones(1,ngen+1);
 end
 
 function [h,pop] = fmod (f, gle, geq, r, s, pop, nvar)
