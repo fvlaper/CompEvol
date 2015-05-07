@@ -77,14 +77,16 @@ function [ x, f, g, h ] = ga(pop,ngen,f,gle,geq)
 %   - colunas (nvar+1) - (2*nvar): restrições de desigualdade;
 %   - colunas (2*nvar+1) - (3*nvar): restrições de igualdade;
 %   - coluna (3*nvar+1): função objetivo;
-%   - coluna (3*nvar+2): fitness.
+%   - coluna (3*nvar+2): fitness;
+%   - coluna (3*nvar+3): número de restrições violadas.
 nvar = size(pop,2);
 columnsX  = 1:nvar;
 columnsG  = nvar+1 : 2*nvar;
 columnsH  = 2*nvar+1 : 3*nvar;
 columnF   = 3*nvar+1;
 %columnFit = 3*nvar+2;
-pais = [pop zeros(size(pop)) zeros(size(pop)) zeros(size(pop,1),2)];
+%columnV   = 3*nvar+3;
+pais = [pop zeros(size(pop)) zeros(size(pop)) zeros(size(pop,1),3)];
 
 %Parâmetros do algoritmo
 ft = @fitness_desc; % handle da função de fitness.
@@ -110,13 +112,13 @@ display(pais);
 
 % Inicialização da população de filhos
 filhos = zeros(size(pais,1)-nelite, size(pais,2));
-display(filhos);
+%display(filhos);
 
 % Loop de evolução
 for g = 1 : ngen
     % Guarda os indivíduos da elite
     elite = pais(1 : nelite, :);
-    display(elite);
+    %display(elite);
 end
 
 x = pais(1,columnsX);
@@ -138,8 +140,31 @@ function [pop] = popSort(pop,nvar)
 %       - pop: array de população ordenado.
 
 columnFit = 3*nvar+2; % Coluna do valor de fitness.
+columnV = 3*nvar+3;   % Coluna da quantidade de violações de restrição.
 
-pop = sortrows(pop, -columnFit);
+%Ordena pela função de fitness apenas (decrescente).
+%pop = sortrows(pop, -columnFit);
+
+%Ordena pela quantidade de violações e pela fitness (decrescente).
+pop = sortrows(pop,[columnV -columnFit]);
+end
+
+function [v] = violacoes(pop, nvar)
+%VIOLACOES Calcula o número restrições violadas por um indivíduo.
+%   Retorna, para cada indivíduo, o número de restrições (igualdade
+%   e desigualdade) violadas por suas variáveis).
+%
+%   Parâmetros de entrada:
+%       - pop: array de população.
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - v: número de restrições violadas por indivíduo(vetor coluna).
+
+columnsG  = nvar+1 : 2*nvar;
+columnsH  = 2*nvar+1 : 3*nvar;
+
+v = sum((pop(:,columnsG) > 0),2) + sum((pop(:,columnsH) ~= 0),2);
 end
 
 function [pop] = fitness(ft, f, gle, geq, r, s, n, pop, nvar)
@@ -162,7 +187,35 @@ function [pop] = fitness(ft, f, gle, geq, r, s, n, pop, nvar)
 %   Parâmetros de saída:
 %       - pop: array de população com valores calculados.
 
-[pop] = ft(f, gle, geq, r, s, n, pop, nvar);
+columnFit = 3*nvar+2;
+columnV = 3*nvar+3;
+
+pop = ft(f, gle, geq, r, s, n, pop, nvar);
+pop(:,columnFit) = escalonamento(pop,nvar);
+pop(:,columnV) = violacoes(pop,nvar);
+end
+
+function [e] = escalonamento(pop,nvar)
+%ESCALONAMENTO Faz o escalonamento da fitness dos indivíduos.
+%   Escalona a fitness dos indivíduos para evitar que um "superindivíduo"
+%   domine a população. Utiliza escalonamento linear.
+%
+%   Parâmetros de entrada:
+%       - pop: array de população.
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - e: fitness escalonada (vetor coluna).
+
+columnFit = 3*nvar+2; % Coluna da fitness
+Cmax = 2; % número máximo de cópias do melhor indivíduo.
+
+fit = pop(:,columnFit);
+fmed = sum(fit) / size(pop,1);
+fmax = max(fit);
+a = (Cmax-1)*fmed / (fmax-fmed);
+b = (1-a) / fmed;
+e = max((a * fit + b), zeros(size(fit)));
 end
 
 function [pop] = fitness_inv(f, gle, geq, r, s, n, pop, nvar)
