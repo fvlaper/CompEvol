@@ -16,11 +16,11 @@ function [ x, f, g, h ] = Flavio( ncal, nvar )
 
 % Estabelecimento dos parametros iniciais
 npop = 10;                % número de indivíduos na população.
-ngen = (ncal / npop) - 1; % número de gerações. Calculado a partir
-                          % do número máximo de cálculos da função de
-                          % fitness, considerando npop cálculos por
-                          % geração, mais npop cálculos para a população
-                          % inicial.
+ngen = floor((ncal / npop) - 1); % número de gerações. Calculado a partir
+                                 % do número máximo de cálculos da função
+                                 % de fitness, considerando npop cálculos 
+                                 % por geração, mais npop cálculos para 
+                                 % a população inicial.
                           
 f   = @rastrigin;         % Handle da função objetivo.
 gle = @rastrigin_le;      % Handle da função de restrição de desigualdade.
@@ -112,13 +112,20 @@ display(pais);
 
 % Inicialização da população de filhos
 filhos = zeros(size(pais,1)-nelite, size(pais,2));
-%display(filhos);
 
 % Loop de evolução
-for g = 1 : ngen
+%for g = 1 : ngen
+for g = 1 : 1
     % Guarda os indivíduos da elite
     elite = pais(1 : nelite, :);
-    %display(elite);
+    
+    % Selecão de pais
+    selecionados = selecao(pais,size(filhos,1));
+    display(selecionados);
+    
+    % Realiza os cruzamentos
+    filhos = cruzamento(filhos,pais,selecionados(1),selecionados(2),nvar,1,0.5);
+    display(filhos);
 end
 
 x = pais(1,columnsX);
@@ -126,6 +133,118 @@ f = pais(1,columnF);
 g = pais(1,columnsG);
 h = pais(1,columnsH);
 
+end
+
+function [filhos] = cruzamento(filhos,pais,pai1,pai2,nvar,ind,pc)
+%CRUZAMENTO Faz o cruzamento entre dois indivíduos.
+%   Realiza o cruzamento estre os dois indivíduos cujos índices são
+%   fornecidos e coloca os filhos sequencialmente no vetor de filhos.
+%   Se o cruzamento não for realizado, apenas copia os pais para o
+%   vetor de filhos.
+%
+%   Parâmetros de entrada:
+%       - filhos: array dos filhos;
+%       - pais: array contendo os pais;
+%       - pai1: índice do primenro pai;
+%       - pai2: índice do segundo pai;
+%       - nvar: número de variáveis;
+%       - ind: índice a primeira linha vaga no array de filhos;
+%       - pc: probabilidade de realização do cruzamento.
+%
+%   Parâmetros de saída:
+%       - filhos: array de filhos (preenchido com novos indivíduos).
+
+
+% Verifica se o cruzamento deve ser realizado; caso contrário, copia.
+if rand > pc
+    filhos(ind,:) = pais(pai1,:);
+    filhos(ind+1,:) = pais(pai2,:);
+else
+    % Determina o melhor e o pior pai.
+    if pai1 < pai2
+        melhor = pai1;
+        pior = pai2;
+    else
+        melhor = pai2;
+        pior = pai1;
+    end
+
+    % Determina os coeficientes
+    kcross = randi(nvar);
+    apol = 0.5 * rand + 0.5;
+    a = 1.2 * rand - 0.1;
+    dir = randi(2) - 1;
+    
+    if dir == 0
+        % Cruzamento para a esquerda
+        filhos(ind,1:kcross) = apol * pais(melhor,1:kcross) + ...
+                               (1-apol) * pais(pior,1:kcross);
+        filhos(ind,(kcross+1):nvar) = pais(melhor,(kcross+1):nvar);
+        filhos(ind+1,1:kcross) = (1-a)*pais(melhor,1:kcross) + ...
+                                 a*pais(pior,1:kcross);
+        filhos(ind+1,(kcross+1):nvar) = pais(pior,(kcross+1):nvar);
+    else
+        % Cruzamento para a direita
+        filhos(ind,1:(kcross-1)) = pais(melhor,1:(kcross-1));
+        filhos(ind,kcross:nvar) = apol*pais(melhor,kcross:nvar) + ...
+                                  (1-apol) * pais(pior,kcross:nvar);
+        filhos(ind+1,1:(kcross-1)) = pais(pior,1:(kcross-1));
+        filhos(ind+1,kcross:nvar) = (1-a)*pais(melhor,kcross:nvar) + ...
+                                    a*pais(pior,kcross:nvar); 
+    end
+end
+end
+
+function [selecionados] = selecao(pais,nfilhos)
+%SELECTION Seleciona os pais que participarão dos próximos processos.
+%   Utiliza torneio binário.
+%
+%   Parâmetros de entrada:
+%       - pais: array contendo os pais;
+%       - nfilhos: número de filhos.
+%
+%   Parâmetros de saída:
+%       - filhos: vetor com índices dos pais selecionados.
+
+npais = size(pais,1);   % quantidade de pais.
+ultimo = -1;            % índice do último pai selecionado.
+selecionados = zeros(1,nfilhos);
+
+f = 1;
+while f <= nfilhos
+    % Seleciona dois pais para o torneio.
+    p1 = randi(npais);
+    p2 = randi(npais);
+    while p1 == p2
+        p2 = randi(npais);
+    end
+    
+    % Determina o melhor e o pior
+    if p1 < p2
+        melhor = p1;
+        pior = p2;
+    else
+        melhor = p2;
+        pior = p1;
+    end
+    
+    % Torneio
+    if rand < 0.75
+        selecionado = melhor;
+    else
+        selecionado = pior;
+    end
+    
+    % Evita o cruzamento de un indivíduo consigo mesmo
+    if rem(f,2) == 0 && ultimo == selecionado
+        continue;
+    end
+    
+    % Registra o pai selecionado
+    ultimo = selecionado;
+    selecionados(f) = selecionado;
+    f = f + 1;
+end
 end
 
 function [pop] = popSort(pop,nvar)
@@ -164,7 +283,12 @@ function [v] = violacoes(pop, nvar)
 columnsG  = nvar+1 : 2*nvar;
 columnsH  = 2*nvar+1 : 3*nvar;
 
-v = sum((pop(:,columnsG) > 0),2) + sum((pop(:,columnsH) ~= 0),2);
+% Variação admissível no teste de violação da restrição de igualdade
+% (testes de igualdade com valores em ponto flutuante não são precisos).
+delta = 0.0000001;
+
+%v = sum((pop(:,columnsG) > 0),2) + sum((pop(:,columnsH) ~= 0),2);
+v = sum((pop(:,columnsG) > 0),2) + sum(abs(pop(:,columnsH)) > delta,2);
 end
 
 function [pop] = fitness(ft, f, gle, geq, r, s, n, pop, nvar)
