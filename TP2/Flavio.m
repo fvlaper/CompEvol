@@ -15,7 +15,7 @@ function [ x, f, g, h ] = Flavio( ncal, nvar )
 %       - h: vetor restrição de igualdade avaliado no ponto x.
 
 % Estabelecimento dos parametros iniciais
-npop = 10;                % número de indivíduos na população.
+npop = 50;                % número de indivíduos na população.
 ngen = floor((ncal / npop) - 1); % número de gerações. Calculado a partir
                                  % do número máximo de cálculos da função
                                  % de fitness, considerando npop cálculos 
@@ -32,7 +32,7 @@ xmax = 5.12;              % de decisão.
 pop = popinit(npop,nvar,xmin,xmax);
 
 % Execução do algoritmo genético para otimização.
-[x, f, g, h] = ga(pop, ngen, f, gle, geq);
+[x, f, g, h] = ga(pop, ngen, f, gle, geq, xmin, xmax);
 
 end
 
@@ -54,7 +54,7 @@ pop = xmin * ones(npop,nvar) + (xmax - xmin) * rand(npop,nvar);
 
 end
 
-function [ x, f, g, h ] = ga(pop,ngen,f,gle,geq)
+function [ x, f, g, h ] = ga(pop,ngen,f,gle,geq,xmin,xmax)
 %GA Função principal do algoritmo genético.
 %   Executa o algoritmo genético (ga) para otimização da função objetivo.
 %
@@ -63,7 +63,9 @@ function [ x, f, g, h ] = ga(pop,ngen,f,gle,geq)
 %       - ngen: número de gerações a processar;
 %       - f: handle da função de otimização original;
 %       - gle: handle da função de restrição de desigualdade;
-%       - geq: handle da função de restrição de igualdade.
+%       - geq: handle da função de restrição de igualdade;
+%       - xmin: valor mínimo de uma variável;
+%       - xmax: valor máximo de uma variável.
 %
 %   Parâmetros de saída:
 %       - x: vetor das variáveis de decisão do melhor indivíduo;
@@ -105,27 +107,59 @@ s = 1 : ((10^8 - 1) / ngen) : 10^8;
 fitpar = fp(ngen);
 
 % Cálculos iniciais para a primeira população de pais
-[pais] = fitness(ft, f, gle, geq, r(1), s(1), fitpar(1), pais, nvar);
-display(pais);
+pais = fitness(ft, f, gle, geq, r(1), s(1), fitpar(1), pais, nvar);
+%display(pais);
 pais = popSort(pais,nvar);
 display(pais);
 
 % Inicialização da população de filhos
 filhos = zeros(size(pais,1)-nelite, size(pais,2));
 
+% Probabilidades iniciais de cruzamento e mutação.
+pc = 0.6;
+pm = 0.05;
+
 % Loop de evolução
-%for g = 1 : ngen
-for g = 1 : 1
+for g = 1 : ngen
+%for g = 1 : 1
     % Guarda os indivíduos da elite
     elite = pais(1 : nelite, :);
     
     % Selecão de pais
     selecionados = selecao(pais,size(filhos,1));
-    display(selecionados);
     
-    % Realiza os cruzamentos
-    filhos = cruzamento(filhos,pais,selecionados(1),selecionados(2),nvar,1,0.5);
-    display(filhos);
+    % Calcula as probabilidade de cruzamento e mutação
+    [pc, pm] = calcProbs(pais,nvar,pc,pm);
+    
+    % Efetua os cruzamentos
+    lsup = size(filhos,1);
+    if rem(lsup,2) == 1; lsup = lsup - 1; end
+    
+    for fl = 1 : 2 : lsup
+        filhos = cruzamento(filhos,pais, ...
+                            selecionados(fl),selecionados(fl+1), ...
+                            nvar, fl, pc);
+    end
+    if rem(size(filhos,1),2) == 1
+        filhos(size(filhos,1),:) = pais(selecionados(size(selecionados,2)),:);
+    end
+    
+    % Efetua as mutações
+    gamma = perturbacao(filhos,nvar,pm,xmin,xmax,g,ngen);
+    filhos(:,columnsX) = filhos(:,columnsX) + gamma;
+
+    % Garante que as condições de contorno sejam respeitadas
+    filhos(:,columnsX) = min(xmax, max(xmin,filhos(:,columnsX)));
+    
+    % Gera a nova população de pais, incluindo a elite
+    pais = [elite ; filhos];
+    
+    % Efetua cálculos e classifica para a nova geração
+    display(pais);
+    pais = fitness(ft, f, gle, geq, r(g+1), s(g+1), fitpar(g+1), ...
+                   pais, nvar);
+    pais = popSort(pais,nvar);
+    display(pais);
 end
 
 x = pais(1,columnsX);
@@ -133,6 +167,109 @@ f = pais(1,columnF);
 g = pais(1,columnsG);
 h = pais(1,columnsH);
 
+end
+
+function [gamma] = perturbacao(pop,nvar,pm,xmin,xmax,g, ngen)
+%PERTURBACAO Calcula a matriz de perturbações.
+%   A matriz de perturbações corresponde aos valores a serem
+%   adicionados às variáveis dos indivíduos para a implementação
+%   da mutação.
+%
+%   Parâmetros de entrada:
+%       - pop: array de indivíduos;
+%       - nvar: número de variáveis;
+%       - pm: probabilidade de mutação;
+%       - xmin: valor mínimo de uma variável;
+%       - xmax: valor máximo de uma variável;
+%       - g: número da geração;
+%       - ngen: total de gerações.
+%
+%   Parâmetros de saída:
+%       - gamma; matriz de perturbações.
+
+npop = size(pop,1);
+gamma = zeros(npop,nvar);
+maxg = floor(0.8 * ngen);  % geração máxima para cálculo por range
+
+for f = 1 : npop
+    if rand < pm
+        % Parâmetros.
+        kmut = randi(nvar);
+        range = xmax - xmin;
+        dir = randi(2) - 1;
+             
+        % Colunas a mutar.
+        if dir == 0
+            tomut = 1 : kmut;
+        else
+            tomut = kmut : nvar;
+        end
+        
+        for v = tomut
+            if g <= maxg
+                val = range;
+            else
+                val = sum(pop(:,v)) / npop;
+            end
+            gamma(f,v) = 0.05 * (2 * rand - 1) * val;
+        end
+    end
+end
+
+end
+
+function [pc, pm] = calcProbs(pop,nvar,pc,pm)
+%CALCPROBS Calcula as probabilidades de cruzamento e mutação.
+%   Calcula as probabilidades de cruzamento e mutação da presente geração.
+%   Essas probabilidades são influenciadas pelo mdg.
+%
+%   Parâmetros de entrada:
+%       - pop: array com os indivíduos da população;
+%       - nvar: número de variáveis;
+%       -8 pc: probabilidade de cruzamento atual;
+%       - pm: probabilidade de mutação atual.
+%
+%   Parâmetros de saída:
+%       - pc: nova probabilidade de cruzamento;
+%       - pm: nova probabilidade de mutação.
+
+
+vinf = 0.3;
+vmax = 0.7;
+kc = 1.2;
+km = 1.2;
+
+mdg = calcMdg(pop,nvar);
+
+if mdg < vinf
+  pc = pc / kc;
+  pm = pm * km;
+elseif mdg > vmax
+  pc = pc * kc;
+  pm = pm / km;
+end
+
+end
+
+function [mdg] = calcMdg(pop, nvar)
+%CALCMDG Calcula a medida da diversidade genética.
+%   A medida da diversidade genética da população influencia nas
+%   probabilidades de cruzamento e mutação.
+%
+%   Parâmetros de entrada:
+%       - pop: array com os indivíduos da população;
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - mdg: medida de diversidade genética da população.
+
+columnFit = 3*nvar+2;
+
+fit = pop(:,columnFit);
+fmed = sum(fit) / size(pop,1);
+fmax = max(fit);
+
+mdg = (fmax - fmed) / fmax;
 end
 
 function [filhos] = cruzamento(filhos,pais,pai1,pai2,nvar,ind,pc)

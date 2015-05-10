@@ -1,1 +1,1 @@
-[a,b,c,d] = Flavio(100,3)
+[a,b,c,d] = Flavio(1500,2)
