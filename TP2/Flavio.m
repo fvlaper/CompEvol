@@ -93,6 +93,8 @@ pais = [pop zeros(size(pop)) zeros(size(pop)) zeros(size(pop,1),3)];
 %Parâmetros do algoritmo
 ft = @fitness_desc; % handle da função de fitness.
 fp = @fitpar_desc;  % handle da função de parâmetros da fitness.
+%ft = @fitness_inv; % handle da função de fitness.
+%fp = @fitpar_inv;  % handle da função de parâmetros da fitness.
 
 nelite = 1;         % número de elementos da elite (preservados para a
                     % próxima geração).
@@ -110,7 +112,7 @@ fitpar = fp(ngen);
 pais = fitness(ft, f, gle, geq, r(1), s(1), fitpar(1), pais, nvar);
 %display(pais);
 pais = popSort(pais,nvar);
-display(pais);
+%display(pais);
 
 % Inicialização da população de filhos
 filhos = zeros(size(pais,1)-nelite, size(pais,2));
@@ -155,11 +157,11 @@ for g = 1 : ngen
     pais = [elite ; filhos];
     
     % Efetua cálculos e classifica para a nova geração
-    display(pais);
+    %display(pais);
     pais = fitness(ft, f, gle, geq, r(g+1), s(g+1), fitpar(g+1), ...
                    pais, nvar);
     pais = popSort(pais,nvar);
-    display(pais);
+    %display(pais);
 end
 
 x = pais(1,columnsX);
@@ -423,9 +425,15 @@ columnsH  = 2*nvar+1 : 3*nvar;
 % Variação admissível no teste de violação da restrição de igualdade
 % (testes de igualdade com valores em ponto flutuante não são precisos).
 delta = 0.0000001;
+%delta = 0.1;
+
+%nv = sum((ceil(10 .^ (max(0,pop(:,columnsG))))-1),2) + sum((ceil(10 .^ abs(pop(:,columnsH)))-1),2);
+%display([pop(:,columnsG) pop(:,columnsH)]);
+%display(nv)
 
 %v = sum((pop(:,columnsG) > 0),2) + sum((pop(:,columnsH) ~= 0),2);
 v = sum((pop(:,columnsG) > 0),2) + sum(abs(pop(:,columnsH)) > delta,2);
+%v = nv;
 end
 
 function [pop] = fitness(ft, f, gle, geq, r, s, n, pop, nvar)
