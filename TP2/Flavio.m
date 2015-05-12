@@ -15,7 +15,8 @@ function [ x, f, g, h ] = Flavio( ncal, nvar )
 %       - h: vetor restrição de igualdade avaliado no ponto x.
 
 % Estabelecimento dos parametros iniciais
-npop = 50;                % número de indivíduos na população.
+%npop = 50;                % número de indivíduos na população.
+npop = 100;                % número de indivíduos na população.
 ngen = floor((ncal / npop) - 1); % número de gerações. Calculado a partir
                                  % do número máximo de cálculos da função
                                  % de fitness, considerando npop cálculos 
@@ -138,9 +139,12 @@ for g = 1 : ngen
     if rem(lsup,2) == 1; lsup = lsup - 1; end
     
     for fl = 1 : 2 : lsup
-        filhos = cruzamento(filhos,pais, ...
-                            selecionados(fl),selecionados(fl+1), ...
-                            nvar, fl, pc);
+        filhos = cruzamento2(filhos,pais, ...
+                             selecionados(fl),selecionados(fl+1), ...
+                             nvar, fl, pc);
+%        filhos = cruzamento(filhos,pais, ...
+%                            selecionados(fl),selecionados(fl+1), ...
+%                            nvar, fl, pc);
     end
     if rem(size(filhos,1),2) == 1
         filhos(size(filhos,1),:) = pais(selecionados(size(selecionados,2)),:);
@@ -161,7 +165,6 @@ for g = 1 : ngen
     pais = fitness(ft, f, gle, geq, r(g+1), s(g+1), fitpar(g+1), ...
                    pais, nvar);
     pais = popSort(pais,nvar);
-    %display(pais);
 end
 
 x = pais(1,columnsX);
@@ -169,6 +172,115 @@ f = pais(1,columnF);
 g = pais(1,columnsG);
 h = pais(1,columnsH);
 
+end
+
+function [filhos] = cruzamento2(filhos,pais,pai1,pai2,nvar,ind,pc)
+%CRUZAMENTO Faz o cruzamento entre dois indivíduos.
+%   Realiza o cruzamento estre os dois indivíduos cujos índices são
+%   fornecidos e coloca os filhos sequencialmente no vetor de filhos.
+%   Se o cruzamento não for realizado, apenas copia os pais para o
+%   vetor de filhos.
+%   Para as variáveis que participarão do cruzamento, determina
+%   individualmente qual é o melhor pai (em relação às restrições), no
+%   lugar de utilizar um melhor pai global baseado em um único critério.
+%
+%   Parâmetros de entrada:
+%       - filhos: array dos filhos;
+%       - pais: array contendo os pais;
+%       - pai1: índice do primeiro pai;
+%       - pai2: índice do segundo pai;
+%       - nvar: número de variáveis;
+%       - ind: índice a primeira linha vaga no array de filhos;
+%       - pc: probabilidade de realização do cruzamento.
+%
+%   Parâmetros de saída:
+%       - filhos: array de filhos (preenchido com novos indivíduos).
+
+
+% Verifica se o cruzamento deve ser realizado; caso contrário, copia.
+if rand > pc
+    filhos(ind,:) = pais(pai1,:);
+    filhos(ind+1,:) = pais(pai2,:);
+else
+    % Determina o melhor e o pior pai em relação ao valor da fitness.
+    if pai1 < pai2
+        melhorfit = pai1;
+        piorfit = pai2;
+    else
+        melhorfit = pai2;
+        piorfit = pai1;
+    end
+
+    % Determina os coeficientes
+    kcross = randi(nvar);
+    apol = 0.5 * rand + 0.5;
+    a = 1.2 * rand - 0.1;
+    dir = randi(2) - 1;
+    
+    if dir == 0
+        faixa = 1:kcross;
+        filhos(ind,(kcross+1):nvar) = pais(melhorfit,(kcross+1):nvar);
+        filhos(ind+1,(kcross+1):nvar) = pais(piorfit,(kcross+1):nvar);
+    else
+        faixa = kcross:nvar;
+        filhos(ind,1:(kcross-1)) = pais(melhorfit,1:(kcross-1));
+        filhos(ind+1,1:(kcross-1)) = pais(piorfit,1:(kcross-1));
+    end
+    
+    for i = faixa
+        [melhor, pior] = compara(pais,pai1,pai2,i,nvar);
+        filhos(ind,i) = apol * pais(melhor,i) + ...
+                        (1-apol) * pais(pior,i);
+        filhos(ind+1,i) = (1-a) * pais(melhor,i) + a * (pais(pior,i));
+    end
+    
+end
+end
+
+function [melhor, pior] = compara(pop,ind1,ind2,var,nvar)
+%COMPARA Compara dois indivíduos.
+%   Determina qual dentre dois indivíduos é o melhor em relação
+%   às restrições de uma variável.
+%
+%   Parâmetros de entrada:
+%       - pop: array de população;
+%       - ind1: índice do primeiro indivíduo;
+%       - ind2: índice do segundo indivíduo;
+%       - var: variável a comparar;
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - melhor: índice do melhor indivíduo;
+%       - pior: índice do pior indivíduo.
+
+colg = nvar + var;     % Colunas das violações da
+colh = 2*nvar + var;   % variável em questão.
+     
+g1 = pop(ind1,colg) <= 0;
+g2 = pop(ind2,colg) <= 0;
+h1 = pop(ind1,colh);
+h2 = pop(ind2,colh);
+     
+if g1 == g2
+    % Ambos respeitam ou desrespeitam a restrição de desigualdade.
+    % Seleciona pela restrição de igualdade.
+    if abs(h1) < abs(h2)
+        melhor = ind1;
+        pior = ind2;
+    else
+        melhor = ind2;
+        pior = ind1;
+    end
+elseif g1 == 1
+    % Indivíduo 1 na faixa, 2 fora.
+    melhor = ind1;
+    pior = ind2;
+else
+    % Indivíduo 2 na faixa, 1 fora.
+    melhor = ind2;
+    pior = ind1;
+end
+     
 end
 
 function [gamma] = perturbacao(pop,nvar,pm,xmin,xmax,g, ngen)
@@ -284,7 +396,7 @@ function [filhos] = cruzamento(filhos,pais,pai1,pai2,nvar,ind,pc)
 %   Parâmetros de entrada:
 %       - filhos: array dos filhos;
 %       - pais: array contendo os pais;
-%       - pai1: índice do primenro pai;
+%       - pai1: índice do primeiro pai;
 %       - pai2: índice do segundo pai;
 %       - nvar: número de variáveis;
 %       - ind: índice a primeira linha vaga no array de filhos;
@@ -401,10 +513,10 @@ columnFit = 3*nvar+2; % Coluna do valor de fitness.
 columnV = 3*nvar+3;   % Coluna da quantidade de violações de restrição.
 
 %Ordena pela função de fitness apenas (decrescente).
-%pop = sortrows(pop, -columnFit);
+pop = sortrows(pop, -columnFit);
 
 %Ordena pela quantidade de violações e pela fitness (decrescente).
-pop = sortrows(pop,[columnV -columnFit]);
+%pop = sortrows(pop,[columnV -columnFit]);
 end
 
 function [v] = violacoes(pop, nvar)
@@ -607,40 +719,6 @@ pop(:,columnF) = fo;
 pop(:,columnsG) = gleo;
 pop(:,columnsH) = geqo;
 end
-
-%function [pais] = roleta(pop)
-%ROLETA Seleção pelo método da roleta.
-%   Seleciona os pais para a próxima geração pelo método da roleta.
-%
-%   Parâmetros de entrada:
-%       - pop: array contendo a população (supõe-se que a última
-%         coluna contém a fitness do indivíduo).
-%
-%   Parâmetros de saída:
-%       - pais: população de pais selecionados para os procedimentos
-%         genéticos seguintes.
-
-%npop = size(pop,1);                    % tamanho da população
-%fitcol = size(pop,2);                  % coluna com o valor da fitness
-%totfitness = sum(pop(:,fitcol));       % fitness total
-%pais = zeros(size(pop));               % pais selecionados
-
-% Loop de seleção
-%for n = 1:npop
-%    r = totfitness * rand(); % valor do lance    
-%    i = 1;                   % índice do indivíduo selecionado
-%    s = pop(1,fitcol);       % soma acumulada
-%    while s < r
-%        i = i + 1;
-%        s = s + pop(i,fitcol);
-%    end
-    
-%    pais(n,:) = pop(i,:);
-%    display(i);
-        
-%end
-
-%end
 
 %------------------------------------------------------------------------%
 % Função de Rastrigin e restrições
