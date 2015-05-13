@@ -17,6 +17,7 @@ function [ x, f, g, h ] = Flavio( ncal, nvar )
 % Estabelecimento dos parametros iniciais
 %npop = 50;                % número de indivíduos na população.
 npop = 100;                % número de indivíduos na população.
+%npop = 10;                % número de indivíduos na população.
 ngen = floor((ncal / npop) - 1); % número de gerações. Calculado a partir
                                  % do número máximo de cálculos da função
                                  % de fitness, considerando npop cálculos 
@@ -88,8 +89,11 @@ columnsG  = nvar+1 : 2*nvar;
 columnsH  = 2*nvar+1 : 3*nvar;
 columnF   = 3*nvar+1;
 %columnFit = 3*nvar+2;
-%columnV   = 3*nvar+3;
-pais = [pop zeros(size(pop)) zeros(size(pop)) zeros(size(pop,1),3)];
+%columnVG  = 3*nvar+3;
+%columnVH  = 3*nvar+4;
+
+%pais = [pop zeros(size(pop)) zeros(size(pop)) zeros(size(pop,1),3)];
+pais = [pop zeros(size(pop)) zeros(size(pop)) zeros(size(pop,1),4)];
 
 %Parâmetros do algoritmo
 ft = @fitness_desc; % handle da função de fitness.
@@ -129,6 +133,7 @@ for g = 1 : ngen
     elite = pais(1 : nelite, :);
     
     % Selecão de pais
+    %display(pais);
     selecionados = selecao(pais,size(filhos,1));
     
     % Calcula as probabilidade de cruzamento e mutação
@@ -479,8 +484,12 @@ while f <= nfilhos
         pior = p1;
     end
     
+    delta = 0.02*(1 - pais(pior,8) / (pais(melhor,8)+realmin));
+    %display(delta);
+    prob = 0.75; % + delta;
+    
     % Torneio
-    if rand < 0.75
+    if rand < prob
         selecionado = melhor;
     else
         selecionado = pior;
@@ -510,17 +519,43 @@ function [pop] = popSort(pop,nvar)
 %       - pop: array de população ordenado.
 
 columnFit = 3*nvar+2; % Coluna do valor de fitness.
-columnV = 3*nvar+3;   % Coluna da quantidade de violações de restrição.
+columnVG = 3*nvar+3;  % Coluna de violações de restrição <=.
+columnVH = 3*nvar+4;  % Coluna de violações de restrição =.
 
 %Ordena pela função de fitness apenas (decrescente).
 pop = sortrows(pop, -columnFit);
 
 %Ordena pela quantidade de violações e pela fitness (decrescente).
-%pop = sortrows(pop,[columnV -columnFit]);
+%pop = sortrows(pop,[columnVG -columnFit]);
+%pop = sortrows(pop,[columnVG columnVH -columnFit]);
 end
 
-function [v] = violacoes(pop, nvar)
-%VIOLACOES Calcula o número restrições violadas por um indivíduo.
+function p = pot10(n)
+%POT10 Próxima potência de 10.
+%   Calcula p tal que 10^p >= abs(n).
+%
+%   Parâmetros de entrada:
+%       - n: array de números a examinar.
+%
+%   Parâmetros de saída:
+%       - p: array com as próximas potências de 10.
+
+i = find(n == 0);
+if ~isempty(i)  % Evita logaritmo de 0
+    n(i) = realmin;
+end
+
+f = log10(abs(n));
+p = floor(f) + 1;
+z = find((floor(f)-f) == 0); % É potência de 10 exata?
+if ~isempty(z)
+   p(z) = f(z);
+end
+
+end
+
+function [g, h] = violacoes(pop, nvar)
+%VIOLACOES Calcula as violações de restrições de restrições um indivíduo.
 %   Retorna, para cada indivíduo, o número de restrições (igualdade
 %   e desigualdade) violadas por suas variáveis).
 %
@@ -534,9 +569,30 @@ function [v] = violacoes(pop, nvar)
 columnsG  = nvar+1 : 2*nvar;
 columnsH  = 2*nvar+1 : 3*nvar;
 
+%g = sum((pop(:,columnsG) > 0),2) + sum(abs(pop(:,columnsH)) > delta,2);
+g = sum((pop(:,columnsG) > 0),2);
+
+h = sum(pot10(pop(:,columnsH)),2);
+end
+
+%function [v] = violacoes(pop, nvar)
+%VIOLACOES Calcula o número restrições violadas por um indivíduo.
+%   Retorna, para cada indivíduo, o número de restrições (igualdade
+%   e desigualdade) violadas por suas variáveis).
+%
+%   Parâmetros de entrada:
+%       - pop: array de população.
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - v: número de restrições violadas por indivíduo(vetor coluna).
+
+%columnsG  = nvar+1 : 2*nvar;
+%columnsH  = 2*nvar+1 : 3*nvar;
+
 % Variação admissível no teste de violação da restrição de igualdade
 % (testes de igualdade com valores em ponto flutuante não são precisos).
-delta = 0.0000001;
+%delta = 0.0000001;
 %delta = 0.1;
 
 %nv = sum((ceil(10 .^ (max(0,pop(:,columnsG))))-1),2) + sum((ceil(10 .^ abs(pop(:,columnsH)))-1),2);
@@ -544,9 +600,9 @@ delta = 0.0000001;
 %display(nv)
 
 %v = sum((pop(:,columnsG) > 0),2) + sum((pop(:,columnsH) ~= 0),2);
-v = sum((pop(:,columnsG) > 0),2) + sum(abs(pop(:,columnsH)) > delta,2);
+%v = sum((pop(:,columnsG) > 0),2) + sum(abs(pop(:,columnsH)) > delta,2);
 %v = nv;
-end
+%end
 
 function [pop] = fitness(ft, f, gle, geq, r, s, n, pop, nvar)
 %FITNESS Função de fitness.
@@ -569,11 +625,15 @@ function [pop] = fitness(ft, f, gle, geq, r, s, n, pop, nvar)
 %       - pop: array de população com valores calculados.
 
 columnFit = 3*nvar+2;
-columnV = 3*nvar+3;
+columnVG = 3*nvar+3;
+columnVH = 3*nvar+4;
 
 pop = ft(f, gle, geq, r, s, n, pop, nvar);
 pop(:,columnFit) = escalonamento(pop,nvar);
-pop(:,columnV) = violacoes(pop,nvar);
+[g, h] = violacoes(pop,nvar);
+%pop(:,columnVG) = violacoes(pop,nvar);
+pop(:,columnVG) = g;
+pop(:,columnVH) = h;
 end
 
 function [e] = escalonamento(pop,nvar)
