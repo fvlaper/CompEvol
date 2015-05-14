@@ -1,4 +1,4 @@
-nvar = 2;
+nvar = 10;
 ncalc = 15000;
 nexe = 30;
 bench = 10 * nvar + nvar * (((-1/3)^2) - 10 * cos(2*pi*(-1/3)));

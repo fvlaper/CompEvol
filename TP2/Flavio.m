@@ -32,9 +32,49 @@ xmax = 5.12;              % de decisão.
                           
 % Estabelecimento da população inicial.
 pop = popinit(npop,nvar,xmin,xmax);
+%pop = popinit2(npop,nvar,xmin,xmax);
 
 % Execução do algoritmo genético para otimização.
 [x, f, g, h] = ga(pop, ngen, f, gle, geq, xmin, xmax);
+
+end
+
+function [pop] = popinit2 ( npop, nvar, xmin, xmax )
+%POPINIT Geração da população inicial.
+%   Gera a população com npop indivíduos e nvar variáveis. Cada
+%   variável tem valores limitados à faixa [xmin,xmax].
+%
+%   Parâmetros de entrada:
+%       - npop: número de indivíduos da população;
+%       - nvar: número de variáveis por indivíduo;
+%       - xmin: valor mínimo de uma variável;
+%       - xmax: valor máximo de uma variável.
+%
+%   Parâmetros de saída:
+%       - pop: array contendo a população (npop linhas, nvar colunas).
+
+lmin = [xmin,-53/12,-41/12,-29/12,-17/12,-5/12, ...
+        7/12,19/12,31/12,43/12,55/12];
+lmax = [-59/12,-47/12,-35/12,-23/12,-11/12,-1/12, ...
+        11/12,23/12,35/12,47/12,59/12];
+popcube = zeros(npop,nvar,size(lmin,2));
+
+for i = 1:size(lmin,2)
+    popcube(:,:,i) = lmin(i) * ones(npop,nvar) + ...
+                     (lmax(i) - lmin(i)) * rand(npop,nvar);
+end
+
+escolha = randi(size(lmin,2),[npop nvar]);
+
+pop = zeros(npop,nvar);
+
+for l = 1:npop
+    for c = 1:nvar
+        pop(l,c) = popcube(l,c,escolha(l,c));
+    end
+end
+
+%pop = xmin * ones(npop,nvar) + (xmax - xmin) * rand(npop,nvar);
 
 end
 
@@ -157,6 +197,7 @@ for g = 1 : ngen
     
     % Efetua as mutações
     gamma = perturbacao(filhos,nvar,pm,xmin,xmax,g,ngen);
+    %gamma = perturbacao2(filhos,nvar,pm,xmin,xmax,g,ngen);
     filhos(:,columnsX) = filhos(:,columnsX) + gamma;
 
     % Garante que as condições de contorno sejam respeitadas
@@ -288,6 +329,63 @@ end
      
 end
 
+function [gamma] = perturbacao2(pop,nvar,pm,xmin,xmax,g, ngen)
+%PERTURBACAO Calcula a matriz de perturbações.
+%   A matriz de perturbações corresponde aos valores a serem
+%   adicionados às variáveis dos indivíduos para a implementação
+%   da mutação.
+%
+%   Parâmetros de entrada:
+%       - pop: array de indivíduos;
+%       - nvar: número de variáveis;
+%       - pm: probabilidade de mutação;
+%       - xmin: valor mínimo de uma variável;
+%       - xmax: valor máximo de uma variável;
+%       - g: número da geração;
+%       - ngen: total de gerações.
+%
+%   Parâmetros de saída:
+%       - gamma; matriz de perturbações.
+
+npop = size(pop,1);
+gamma = zeros(npop,nvar);
+maxg = floor(0.8 * ngen);  % geração máxima para cálculo por range
+range = xmax - xmin;
+
+for f = 1 : npop
+    if rand < pm
+        % Parâmetros.
+        %kmut = randi(nvar);
+        %dir = randi(2) - 1;
+             
+        % Colunas a mutar.
+        tomut = randi(2, [1,nvar]) -1;
+        while sum(tomut) < 1
+            tomut = randi(2, [1,nvar]) -1;
+        end
+        %display(tomut);
+        %display(sum(tomut));
+
+        %if dir == 0
+        %    tomut = 1 : kmut;
+        %else
+        %    tomut = kmut : nvar;
+        %end
+        
+        %for v = tomut
+        for v = 1:nvar
+            if g <= maxg
+                val = range;
+            else
+                val = sum(pop(:,v)) / npop;
+            end
+            gamma(f,v) = tomut(v) * 0.05 * (2 * rand - 1) * val;
+        end
+    end
+end
+
+end
+
 function [gamma] = perturbacao(pop,nvar,pm,xmin,xmax,g, ngen)
 %PERTURBACAO Calcula a matriz de perturbações.
 %   A matriz de perturbações corresponde aos valores a serem
@@ -309,12 +407,12 @@ function [gamma] = perturbacao(pop,nvar,pm,xmin,xmax,g, ngen)
 npop = size(pop,1);
 gamma = zeros(npop,nvar);
 maxg = floor(0.8 * ngen);  % geração máxima para cálculo por range
+range = xmax - xmin;
 
 for f = 1 : npop
     if rand < pm
         % Parâmetros.
         kmut = randi(nvar);
-        range = xmax - xmin;
         dir = randi(2) - 1;
              
         % Colunas a mutar.
@@ -629,7 +727,8 @@ columnVG = 3*nvar+3;
 columnVH = 3*nvar+4;
 
 pop = ft(f, gle, geq, r, s, n, pop, nvar);
-pop(:,columnFit) = escalonamento(pop,nvar);
+%pop(:,columnFit) = escalonamento(pop,nvar);
+pop(:,columnFit) = escalonamento2(pop,nvar);
 [g, h] = violacoes(pop,nvar);
 %pop(:,columnVG) = violacoes(pop,nvar);
 pop(:,columnVG) = g;
@@ -657,6 +756,36 @@ fmax = max(fit);
 a = (Cmax-1)*fmed / (fmax-fmed);
 b = (1-a) / fmed;
 e = max((a * fit + b), zeros(size(fit)));
+end
+
+function [e] = escalonamento2(pop,nvar)
+%ESCALONAMENTO Faz o escalonamento da fitness dos indivíduos.
+%   Escalona a fitness dos indivíduos para evitar que um "superindivíduo"
+%   domine a população. Utiliza escalonamento sigma truncado.
+%
+%   Parâmetros de entrada:
+%       - pop: array de população.
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - e: fitness escalonada (vetor coluna).
+
+columnFit = 3*nvar+2; % Coluna da fitness
+%Cmax = 2; % número máximo de cópias do melhor indivíduo.
+C = 1;    % Quantidade de desvios padrões.
+
+fit = pop(:,columnFit);
+fmed = sum(fit) / size(pop,1);
+
+sigma = sqrt((sum((fit - fmed) .^ 2)) / (size(pop,1)-1));
+
+e = max(0, fit - (fmed - C * sigma));
+%display(e);
+
+%fmax = max(fit);
+%a = (Cmax-1)*fmed / (fmax-fmed);
+%b = (1-a) / fmed;
+%e = max((a * fit + b), zeros(size(fit)));
 end
 
 function [pop] = fitness_inv(f, gle, geq, r, s, n, pop, nvar)
