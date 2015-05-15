@@ -16,7 +16,7 @@ function [ x, f, g, h ] = Flavio( ncal, nvar )
 
 % Estabelecimento dos parametros iniciais
 %npop = 50;                % número de indivíduos na população.
-npop = 100;                % número de indivíduos na população.
+npop = 200;                % número de indivíduos na população.
 %npop = 10;                % número de indivíduos na população.
 ngen = floor((ncal / npop) - 1); % número de gerações. Calculado a partir
                                  % do número máximo de cálculos da função
@@ -93,6 +93,7 @@ function [pop] = popinit ( npop, nvar, xmin, xmax )
 %       - pop: array contendo a população (npop linhas, nvar colunas). 
 
 pop = xmin * ones(npop,nvar) + (xmax - xmin) * rand(npop,nvar);
+%pop = (-5/12) * ones(npop,nvar) + ((-1/12) - (-5/12)) * rand(npop,nvar);
 
 end
 
@@ -196,8 +197,8 @@ for g = 1 : ngen
     end
     
     % Efetua as mutações
-    gamma = perturbacao(filhos,nvar,pm,xmin,xmax,g,ngen);
-    %gamma = perturbacao2(filhos,nvar,pm,xmin,xmax,g,ngen);
+    %gamma = perturbacao(filhos,nvar,pm,xmin,xmax,g,ngen);
+    gamma = perturbacao2(filhos,nvar,pm,xmin,xmax,g,ngen);
     filhos(:,columnsX) = filhos(:,columnsX) + gamma;
 
     % Garante que as condições de contorno sejam respeitadas
@@ -274,7 +275,7 @@ else
     end
     
     for i = faixa
-        [melhor, pior] = compara(pais,pai1,pai2,i,nvar);
+        [melhor, pior] = compara2(pais,pai1,pai2,i,nvar);
         filhos(ind,i) = apol * pais(melhor,i) + ...
                         (1-apol) * pais(pior,i);
         filhos(ind+1,i) = (1-a) * pais(melhor,i) + a * (pais(pior,i));
@@ -329,6 +330,75 @@ end
      
 end
 
+function [melhor, pior] = compara2(pop,ind1,ind2,var,nvar)
+%COMPARA Compara dois indivíduos.
+%   Determina qual dentre dois indivíduos é o melhor em relação
+%   às restrições de uma variável.
+%
+%   Parâmetros de entrada:
+%       - pop: array de população;
+%       - ind1: índice do primeiro indivíduo;
+%       - ind2: índice do segundo indivíduo;
+%       - var: variável a comparar;
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - melhor: índice do melhor indivíduo;
+%       - pior: índice do pior indivíduo.
+
+colg = nvar + var;     % Colunas das violações da
+colh = 2*nvar + var;   % variável em questão.
+     
+g1 = pop(ind1,colg) <= 0;
+g2 = pop(ind2,colg) <= 0;
+h1 = pop(ind1,colh);
+h2 = pop(ind2,colh);
+     
+if g1 == 0 && g2 == 0
+    % Ambos desrespeitam a restrição de desigualdade.
+    % Seleciona pela restrição de igualdade.
+    if abs(h1) < abs(h2)
+        melhor = ind1;
+        pior = ind2;
+    else
+        melhor = ind2;
+        pior = ind1;
+    end
+elseif g2 == 0
+    % Indivíduo 1 na faixa, 2 fora.
+    melhor = ind1;
+    pior = ind2;
+elseif g1 == 0
+    % Indivíduo 2 na faixa, 1 fora.
+    melhor = ind2;
+    pior = ind1;
+else
+    % Ambos os indívíduos respeitam a restrição de desigualdade
+    % Verifica qual está na faixa mais adequada.
+    faixa1 = abs(round(pop(ind1,var)));
+    faixa2 = abs(round(pop(ind2,var)));
+    if faixa1 == faixa2
+        % Ambos na mesma faixa; seleciona pela restrição de igualdade
+        if abs(h1) < abs(h2)
+            melhor = ind1;
+            pior = ind2;
+        else
+            melhor = ind2;
+            pior = ind1;
+        end
+    elseif faixa1 < faixa2
+        % Indivíduo 1 na melhor faixa.
+        melhor = ind1;
+        pior = ind2;
+    else
+        % Indivíduo 2 na melhor faixa.
+        melhor = ind2;
+        pior = ind1;
+    end
+end
+     
+end
+
 function [gamma] = perturbacao2(pop,nvar,pm,xmin,xmax,g, ngen)
 %PERTURBACAO Calcula a matriz de perturbações.
 %   A matriz de perturbações corresponde aos valores a serem
@@ -358,7 +428,7 @@ for f = 1 : npop
         %kmut = randi(nvar);
         %dir = randi(2) - 1;
              
-        % Colunas a mutar.
+        % Colunas a mutar.        
         tomut = randi(2, [1,nvar]) -1;
         while sum(tomut) < 1
             tomut = randi(2, [1,nvar]) -1;
@@ -582,7 +652,7 @@ while f <= nfilhos
         pior = p1;
     end
     
-    delta = 0.02*(1 - pais(pior,8) / (pais(melhor,8)+realmin));
+    %delta = 0.02*(1 - pais(pior,8) / (pais(melhor,8)+realmin));
     %display(delta);
     prob = 0.75; % + delta;
     
@@ -593,7 +663,7 @@ while f <= nfilhos
         selecionado = pior;
     end
     
-    % Evita o cruzamento de un indivíduo consigo mesmo
+    % Evita o cruzamento de um indivíduo consigo mesmo
     if rem(f,2) == 0 && ultimo == selecionado
         continue;
     end
@@ -621,10 +691,11 @@ columnVG = 3*nvar+3;  % Coluna de violações de restrição <=.
 columnVH = 3*nvar+4;  % Coluna de violações de restrição =.
 
 %Ordena pela função de fitness apenas (decrescente).
-pop = sortrows(pop, -columnFit);
+%pop = sortrows(pop, -columnFit);
 
 %Ordena pela quantidade de violações e pela fitness (decrescente).
 %pop = sortrows(pop,[columnVG -columnFit]);
+pop = sortrows(pop,[columnVH -columnFit]);
 %pop = sortrows(pop,[columnVG columnVH -columnFit]);
 end
 
@@ -664,13 +735,19 @@ function [g, h] = violacoes(pop, nvar)
 %   Parâmetros de saída:
 %       - v: número de restrições violadas por indivíduo(vetor coluna).
 
-columnsG  = nvar+1 : 2*nvar;
-columnsH  = 2*nvar+1 : 3*nvar;
+columnsX = 1:nvar;
+columnsG = nvar+1 : 2*nvar;
+columnsH = 2*nvar+1 : 3*nvar;
+
+viol = sum(abs(round(pop(:,columnsX))),2) + sum((pop(:,columnsG) > 0),2) * 10;
+%viol = sum((pop(:,columnsG) > 0),2) * 10;
 
 %g = sum((pop(:,columnsG) > 0),2) + sum(abs(pop(:,columnsH)) > delta,2);
-g = sum((pop(:,columnsG) > 0),2);
 
-h = sum(pot10(pop(:,columnsH)),2);
+%g = sum((pop(:,columnsG) > 0),2);
+g = sum(((pop(:,columnsX) < (-5/12)) + (pop(:,columnsX) > (-1/12))),2);
+%h = sum(pot10(pop(:,columnsH)),2);
+h = viol;
 end
 
 %function [v] = violacoes(pop, nvar)

@@ -1,16 +1,26 @@
 nvar = 10;
 ncalc = 15000;
-nexe = 30;
+nexe = 50;
+
+
 bench = 10 * nvar + nvar * (((-1/3)^2) - 10 * cos(2*pi*(-1/3)));
+result = (-1/3) * ones(1,nvar);
 s = 0;
+r = 0;
+f = 0;
 for i = 1:nexe
 %for i = 1:1
     [a,b,c,d] = Flavio(ncalc,nvar);
-    display(a);
+    r = r + sum(abs(a-result));
     s = s + abs(bench-b);
+    f = f + sum(abs(round(a)));
+    display([a, sum(abs(round(a)))]);
 end
 
 display(s / bench);
+display(f / nexe);
+display(r / nexe);
+
 %display(bench);
 %display(['bench = ', num2str(bench), ' calc = ', num2str(b)]);
 %[a,b,c,d] = Flavio(ncalc,nvar)
