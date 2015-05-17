@@ -1,5 +1,5 @@
 nvar = 10;
-ncalc = 15000;
+ncalc = 20000;
 nexe = 50;
 
 
@@ -9,15 +9,15 @@ s = 0;
 r = 0;
 f = 0;
 for i = 1:nexe
-%for i = 1:1
     [a,b,c,d] = Flavio(ncalc,nvar);
     r = r + sum(abs(a-result));
     s = s + abs(bench-b);
-    f = f + sum(abs(round(a)));
-    display([a, sum(abs(round(a)))]);
+    f = f + sum(a);
+    display([b, sum(abs(round(a))), sum(c), sum(d)]);
 end
 
-display(s / bench);
+display(bench);
+display(s / nexe);
 display(f / nexe);
 display(r / nexe);
 

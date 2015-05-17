@@ -1,10 +1,3 @@
-% Flávio Velloso Laper
-%
-% Computação evolucionária
-% Prof. João Antônio de Vasconcelos
-%
-% Trabalho 2
-
 function [ x, f, g, h ] = Flavio( ncal, nvar )
 %FLAVIO Trabalho 2 de Computação Evolucionária - Flávio Laper.
 %   Esta função implementa um algoritmo genético para minimizar a
@@ -22,24 +15,15 @@ function [ x, f, g, h ] = Flavio( ncal, nvar )
 %       - h: vetor restrição de igualdade avaliado no ponto x.
 
 % Estabelecimento dos parametros iniciais
-
-% Número de indivíduos da populaçao
-% Calculado a partir
-% do número máximo de cálculos da função
-% de fitness, considerando npop cálculos 
-% por geração, mais npop cálculos para 
-% a população inicial.%if nvar < 4
-npop = 200;
-ngen = floor((ncal / npop) - 1);
-if ngen < 50
-    npop = 100;
-    ngen = floor((ncal / npop) - 1);
-    if ngen < 50
-        npop = 50;
-        ngen = floor((ncal / npop) - 1);
-    end
-end
-
+%npop = 50;                % número de indivíduos na população.
+npop = 200;                % número de indivíduos na população.
+%npop = 10;                % número de indivíduos na população.
+ngen = floor((ncal / npop) - 1); % número de gerações. Calculado a partir
+                                 % do número máximo de cálculos da função
+                                 % de fitness, considerando npop cálculos 
+                                 % por geração, mais npop cálculos para 
+                                 % a população inicial.
+                          
 f   = @rastrigin;         % Handle da função objetivo.
 gle = @rastrigin_le;      % Handle da função de restrição de desigualdade.
 geq = @rastrigin_eq;      % Handle da função de restrição de igualdade.
@@ -48,9 +32,49 @@ xmax = 5.12;              % de decisão.
                           
 % Estabelecimento da população inicial.
 pop = popinit(npop,nvar,xmin,xmax);
+%pop = popinit2(npop,nvar,xmin,xmax);
 
 % Execução do algoritmo genético para otimização.
 [x, f, g, h] = ga(pop, ngen, f, gle, geq, xmin, xmax);
+
+end
+
+function [pop] = popinit2 ( npop, nvar, xmin, xmax )
+%POPINIT Geração da população inicial.
+%   Gera a população com npop indivíduos e nvar variáveis. Cada
+%   variável tem valores limitados à faixa [xmin,xmax].
+%
+%   Parâmetros de entrada:
+%       - npop: número de indivíduos da população;
+%       - nvar: número de variáveis por indivíduo;
+%       - xmin: valor mínimo de uma variável;
+%       - xmax: valor máximo de uma variável.
+%
+%   Parâmetros de saída:
+%       - pop: array contendo a população (npop linhas, nvar colunas).
+
+lmin = [xmin,-53/12,-41/12,-29/12,-17/12,-5/12, ...
+        7/12,19/12,31/12,43/12,55/12];
+lmax = [-59/12,-47/12,-35/12,-23/12,-11/12,-1/12, ...
+        11/12,23/12,35/12,47/12,59/12];
+popcube = zeros(npop,nvar,size(lmin,2));
+
+for i = 1:size(lmin,2)
+    popcube(:,:,i) = lmin(i) * ones(npop,nvar) + ...
+                     (lmax(i) - lmin(i)) * rand(npop,nvar);
+end
+
+escolha = randi(size(lmin,2),[npop nvar]);
+
+pop = zeros(npop,nvar);
+
+for l = 1:npop
+    for c = 1:nvar
+        pop(l,c) = popcube(l,c,escolha(l,c));
+    end
+end
+
+%pop = xmin * ones(npop,nvar) + (xmax - xmin) * rand(npop,nvar);
 
 end
 
@@ -69,6 +93,7 @@ function [pop] = popinit ( npop, nvar, xmin, xmax )
 %       - pop: array contendo a população (npop linhas, nvar colunas). 
 
 pop = xmin * ones(npop,nvar) + (xmax - xmin) * rand(npop,nvar);
+%pop = (-5/12) * ones(npop,nvar) + ((-1/12) - (-5/12)) * rand(npop,nvar);
 
 end
 
@@ -98,8 +123,7 @@ function [ x, f, g, h ] = ga(pop,ngen,f,gle,geq,xmin,xmax)
 %   - colunas (2*nvar+1) - (3*nvar): restrições de igualdade;
 %   - coluna (3*nvar+1): função objetivo;
 %   - coluna (3*nvar+2): fitness;
-%   - coluna (3*nvar+3): número de restrições de desigualdade violadas;
-%   - coluna (3*nvar+4): número de restrições de igualdade violadas;
+%   - coluna (3*nvar+3): número de restrições violadas.
 nvar = size(pop,2);
 columnsX  = 1:nvar;
 columnsG  = nvar+1 : 2*nvar;
@@ -109,6 +133,7 @@ columnF   = 3*nvar+1;
 %columnVG  = 3*nvar+3;
 %columnVH  = 3*nvar+4;
 
+%pais = [pop zeros(size(pop)) zeros(size(pop)) zeros(size(pop,1),3)];
 pais = [pop zeros(size(pop)) zeros(size(pop)) zeros(size(pop,1),4)];
 
 %Parâmetros do algoritmo
@@ -131,7 +156,9 @@ fitpar = fp(ngen);
 
 % Cálculos iniciais para a primeira população de pais
 pais = fitness(ft, f, gle, geq, r(1), s(1), fitpar(1), pais, nvar);
+%display(pais);
 pais = popSort(pais,nvar);
+%display(pais);
 
 % Inicialização da população de filhos
 filhos = zeros(size(pais,1)-nelite, size(pais,2));
@@ -147,6 +174,7 @@ for g = 1 : ngen
     elite = pais(1 : nelite, :);
     
     % Selecão de pais
+    %display(pais);
     selecionados = selecao(pais,size(filhos,1));
     
     % Calcula as probabilidade de cruzamento e mutação
@@ -157,17 +185,20 @@ for g = 1 : ngen
     if rem(lsup,2) == 1; lsup = lsup - 1; end
     
     for fl = 1 : 2 : lsup
-        filhos = cruzamento(filhos,pais, ...
-                            selecionados(fl),selecionados(fl+1), ...
-                            nvar, fl, pc);
+        filhos = cruzamento2(filhos,pais, ...
+                             selecionados(fl),selecionados(fl+1), ...
+                             nvar, fl, pc);
+%        filhos = cruzamento(filhos,pais, ...
+%                            selecionados(fl),selecionados(fl+1), ...
+%                            nvar, fl, pc);
     end
     if rem(size(filhos,1),2) == 1
-        filhos(size(filhos,1),:) = ...
-                             pais(selecionados(size(selecionados,2)),:);
+        filhos(size(filhos,1),:) = pais(selecionados(size(selecionados,2)),:);
     end
     
     % Efetua as mutações
-    gamma = perturbacao(filhos,nvar,pm,xmin,xmax,g,ngen);
+    %gamma = perturbacao(filhos,nvar,pm,xmin,xmax,g,ngen);
+    gamma = perturbacao2(filhos,nvar,pm,xmin,xmax,g,ngen);
     filhos(:,columnsX) = filhos(:,columnsX) + gamma;
 
     % Garante que as condições de contorno sejam respeitadas
@@ -177,10 +208,13 @@ for g = 1 : ngen
     pais = [elite ; filhos];
     
     % Efetua cálculos e classifica para a nova geração
+    %display(pais);
     pais = fitness(ft, f, gle, geq, r(g+1), s(g+1), fitpar(g+1), ...
                    pais, nvar);
     pais = popSort(pais,nvar);
 end
+
+%display([pais(1:10,columnsX), pais(1:10, columnF)]);
 
 x = pais(1,columnsX);
 f = pais(1,columnF);
@@ -189,173 +223,7 @@ h = pais(1,columnsH);
 
 end
 
-function [pop] = fitness(ft, f, gle, geq, r, s, n, pop, nvar)
-%FITNESS Função de fitness.
-%   Calcula a fitness dos indivíduos da população. Esta função é
-%   apenas um "stub" que recebe a função de fitness específica a
-%   utilizar no cálculo.
-%
-%   Parâmetros de entrada:
-%       - ft: handle da função de fitness;
-%       - f: handle da função de otimização original;
-%       - gle: handle da função de restrição de desigualdade;
-%       - geq: handle da função de restrição de igualdade;
-%       - r: parâmetro de penalidade para a restrição de desigualdade;
-%       - s: parâmetro de penalidade para a restrição de igualdade;
-%       - n: parâmetro de escalonamento da função de fitness;
-%       - pop: array contendo a população (um indivíduo por linha);
-%       - nvar: número de variáveis.
-%
-%   Parâmetros de saída:
-%       - pop: array de população com valores calculados.
-
-columnFit = 3*nvar+2;
-columnVG = 3*nvar+3;
-columnVH = 3*nvar+4;
-
-pop = ft(f, gle, geq, r, s, n, pop, nvar);
-pop(:,columnFit) = escalonamento(pop,nvar);
-[g, h] = violacoes(pop,nvar);
-pop(:,columnVG) = g;
-pop(:,columnVH) = h;
-end
-
-function [pop] = popSort(pop,nvar)
-%POPSORT Ordena o array de populaçao.
-%   Ordena o array de população do melhor para o pior indivíduo.
-%
-%   Parâmetros de entrada:
-%       - pop: array de população;
-%       - nvar: número de variáveis.
-%
-%   Parâmetros de saída:
-%       - pop: array de população ordenado.
-
-columnFit = 3*nvar+2; % Coluna do valor de fitness.
-columnVG = 3*nvar+3;  % Coluna de violações de restrição <=.
-columnVH = 3*nvar+4;  % Coluna de violações de restrição =.
-
-if nvar < 5
-    %Ordena pela quantidade de violações e pela fitness (decrescente).
-    pop = sortrows(pop,[columnVG -columnFit columnVH]);
-else
-    %Ordena pela função de fitness apenas (decrescente).
-    pop = sortrows(pop, -columnFit);
-end
-
-end
-
-function [selecionados] = selecao(pais,nfilhos)
-%SELECTION Seleciona os pais que participarão dos próximos processos.
-%   Utiliza torneio binário. Procura garantir que nenhum indivíduo
-%   seja comparado consigo mesmo e que, caso selecionado, também não
-%   seja cruzado consigo mesmo.
-%
-%   Parâmetros de entrada:
-%       - pais: array contendo os pais;
-%       - nfilhos: número de filhos.
-%
-%   Parâmetros de saída:
-%       - filhos: vetor com índices dos pais selecionados.
-
-npais = size(pais,1);   % quantidade de pais.
-ultimo = -1;            % índice do último pai selecionado.
-selecionados = zeros(1,nfilhos);
-
-f = 1;
-while f <= nfilhos
-    % Seleciona dois pais para o torneio.
-    p1 = randi(npais);
-    p2 = randi(npais);
-    while p1 == p2
-        p2 = randi(npais);
-    end
-    
-    % Determina o melhor e o pior
-    if p1 < p2
-        melhor = p1;
-        pior = p2;
-    else
-        melhor = p2;
-        pior = p1;
-    end
-    
-    prob = 0.75;
-    
-    % Torneio
-    if rand < prob
-        selecionado = melhor;
-    else
-        selecionado = pior;
-    end
-    
-    % Evita o cruzamento de um indivíduo consigo mesmo
-    if rem(f,2) == 0 && ultimo == selecionado
-        continue;
-    end
-    
-    % Registra o pai selecionado
-    ultimo = selecionado;
-    selecionados(f) = selecionado;
-    f = f + 1;
-end
-end
-
-function [pc, pm] = calcProbs(pop,nvar,pc,pm)
-%CALCPROBS Calcula as probabilidades de cruzamento e mutação.
-%   Calcula as probabilidades de cruzamento e mutação da presente geração.
-%   Essas probabilidades são influenciadas pelo mdg.
-%
-%   Parâmetros de entrada:
-%       - pop: array com os indivíduos da população;
-%       - nvar: número de variáveis;
-%       -8 pc: probabilidade de cruzamento atual;
-%       - pm: probabilidade de mutação atual.
-%
-%   Parâmetros de saída:
-%       - pc: nova probabilidade de cruzamento;
-%       - pm: nova probabilidade de mutação.
-
-
-vinf = 0.3;
-vmax = 0.7;
-kc = 1.2;
-km = 1.2;
-
-mdg = calcMdg(pop,nvar);
-
-if mdg < vinf
-  pc = pc / kc;
-  pm = pm * km;
-elseif mdg > vmax
-  pc = pc * kc;
-  pm = pm / km;
-end
-
-end
-
-function [mdg] = calcMdg(pop, nvar)
-%CALCMDG Calcula a medida da diversidade genética.
-%   A medida da diversidade genética da população influencia nas
-%   probabilidades de cruzamento e mutação.
-%
-%   Parâmetros de entrada:
-%       - pop: array com os indivíduos da população;
-%       - nvar: número de variáveis.
-%
-%   Parâmetros de saída:
-%       - mdg: medida de diversidade genética da população.
-
-columnFit = 3*nvar+2;
-
-fit = pop(:,columnFit);
-fmed = sum(fit) / size(pop,1);
-fmax = max(fit);
-
-mdg = (fmax - fmed) / fmax;
-end
-
-function [filhos] = cruzamento(filhos,pais,pai1,pai2,nvar,ind,pc)
+function [filhos] = cruzamento2(filhos,pais,pai1,pai2,nvar,ind,pc)
 %CRUZAMENTO Faz o cruzamento entre dois indivíduos.
 %   Realiza o cruzamento estre os dois indivíduos cujos índices são
 %   fornecidos e coloca os filhos sequencialmente no vetor de filhos.
@@ -363,8 +231,7 @@ function [filhos] = cruzamento(filhos,pais,pai1,pai2,nvar,ind,pc)
 %   vetor de filhos.
 %   Para as variáveis que participarão do cruzamento, determina
 %   individualmente qual é o melhor pai (em relação às restrições), no
-%   lugar de utilizar um melhor pai global baseado em um único critério
-%   (como mostrado em sala).
+%   lugar de utilizar um melhor pai global baseado em um único critério.
 %
 %   Parâmetros de entrada:
 %       - filhos: array dos filhos;
@@ -410,7 +277,7 @@ else
     end
     
     for i = faixa
-        [melhor, pior] = compara(pais,pai1,pai2,i,nvar);
+        [melhor, pior] = compara2(pais,pai1,pai2,i,nvar);
         filhos(ind,i) = apol * pais(melhor,i) + ...
                         (1-apol) * pais(pior,i);
         filhos(ind+1,i) = (1-a) * pais(melhor,i) + a * (pais(pior,i));
@@ -420,6 +287,52 @@ end
 end
 
 function [melhor, pior] = compara(pop,ind1,ind2,var,nvar)
+%COMPARA Compara dois indivíduos.
+%   Determina qual dentre dois indivíduos é o melhor em relação
+%   às restrições de uma variável.
+%
+%   Parâmetros de entrada:
+%       - pop: array de população;
+%       - ind1: índice do primeiro indivíduo;
+%       - ind2: índice do segundo indivíduo;
+%       - var: variável a comparar;
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - melhor: índice do melhor indivíduo;
+%       - pior: índice do pior indivíduo.
+
+colg = nvar + var;     % Colunas das violações da
+colh = 2*nvar + var;   % variável em questão.
+     
+g1 = pop(ind1,colg) <= 0;
+g2 = pop(ind2,colg) <= 0;
+h1 = pop(ind1,colh);
+h2 = pop(ind2,colh);
+     
+if g1 == g2
+    % Ambos respeitam ou desrespeitam a restrição de desigualdade.
+    % Seleciona pela restrição de igualdade.
+    if abs(h1) < abs(h2)
+        melhor = ind1;
+        pior = ind2;
+    else
+        melhor = ind2;
+        pior = ind1;
+    end
+elseif g1 == 1
+    % Indivíduo 1 na faixa, 2 fora.
+    melhor = ind1;
+    pior = ind2;
+else
+    % Indivíduo 2 na faixa, 1 fora.
+    melhor = ind2;
+    pior = ind1;
+end
+     
+end
+
+function [melhor, pior] = compara2(pop,ind1,ind2,var,nvar)
 %COMPARA Compara dois indivíduos.
 %   Determina qual dentre dois indivíduos é o melhor em relação
 %   às restrições de uma variável.
@@ -488,15 +401,11 @@ end
      
 end
 
-function [gamma] = perturbacao(pop,nvar,pm,xmin,xmax,g, ngen)
+function [gamma] = perturbacao2(pop,nvar,pm,xmin,xmax,g, ngen)
 %PERTURBACAO Calcula a matriz de perturbações.
 %   A matriz de perturbações corresponde aos valores a serem
 %   adicionados às variáveis dos indivíduos para a implementação
 %   da mutação.
-%   Esta função determina aleatoriamente as variáveis a perturbar
-%   (e não uma faixa de variáveis, como feito em sala); além disso,
-%   para muitas variáveis, aumenta o valor da mutação de forma
-%   proporcional à violação de restrições.
 %
 %   Parâmetros de entrada:
 %       - pop: array de indivíduos;
@@ -518,73 +427,278 @@ range = xmax - xmin;
 for f = 1 : npop
     if rand < pm
         % Parâmetros.
+        %kmut = randi(nvar);
+        %dir = randi(2) - 1;
              
         % Colunas a mutar.        
         tomut = randi(2, [1,nvar]) -1;
         while sum(tomut) < 1
             tomut = randi(2, [1,nvar]) -1;
         end
+        %display(tomut);
+        %display(sum(tomut));
+
+        %if dir == 0
+        %    tomut = 1 : kmut;
+        %else
+        %    tomut = kmut : nvar;
+        %end
+        
+        %for v = tomut
         for v = 1:nvar
             if g <= maxg
                 val = range;
             else
                 val = sum(pop(:,v)) / npop;
             end
-            if nvar < 7
-                gamma(f,v) = tomut(v) * 0.05 * (2 * rand - 1) * val;
-            else
-                gamma(f,v) = tomut(v) * ...
-                  (0.05+0.03*abs(round(pop(f,v)))) * (2 * rand - 1) * val;
-            end
+            %gamma(f,v) = tomut(v) * 0.05 * (2 * rand - 1) * val;
+            gamma(f,v) = tomut(v) * (0.05+0.03*abs(round(pop(f,v)))) * (2 * rand - 1) * val;
         end
     end
 end
 
 end
 
-function [e] = escalonamento(pop,nvar)
-%ESCALONAMENTO Faz o escalonamento da fitness dos indivíduos.
-%   Escalona a fitness dos indivíduos para evitar que um "superindivíduo"
-%   domine a população. Utiliza escalonamento linear.
+function [gamma] = perturbacao(pop,nvar,pm,xmin,xmax,g, ngen)
+%PERTURBACAO Calcula a matriz de perturbações.
+%   A matriz de perturbações corresponde aos valores a serem
+%   adicionados às variáveis dos indivíduos para a implementação
+%   da mutação.
 %
 %   Parâmetros de entrada:
-%       - pop: array de população.
+%       - pop: array de indivíduos;
+%       - nvar: número de variáveis;
+%       - pm: probabilidade de mutação;
+%       - xmin: valor mínimo de uma variável;
+%       - xmax: valor máximo de uma variável;
+%       - g: número da geração;
+%       - ngen: total de gerações.
+%
+%   Parâmetros de saída:
+%       - gamma; matriz de perturbações.
+
+npop = size(pop,1);
+gamma = zeros(npop,nvar);
+maxg = floor(0.8 * ngen);  % geração máxima para cálculo por range
+range = xmax - xmin;
+
+for f = 1 : npop
+    if rand < pm
+        % Parâmetros.
+        kmut = randi(nvar);
+        dir = randi(2) - 1;
+             
+        % Colunas a mutar.
+        if dir == 0
+            tomut = 1 : kmut;
+        else
+            tomut = kmut : nvar;
+        end
+        
+        for v = tomut
+            if g <= maxg
+                val = range;
+            else
+                val = sum(pop(:,v)) / npop;
+            end
+            gamma(f,v) = 0.05 * (2 * rand - 1) * val;
+        end
+    end
+end
+
+end
+
+function [pc, pm] = calcProbs(pop,nvar,pc,pm)
+%CALCPROBS Calcula as probabilidades de cruzamento e mutação.
+%   Calcula as probabilidades de cruzamento e mutação da presente geração.
+%   Essas probabilidades são influenciadas pelo mdg.
+%
+%   Parâmetros de entrada:
+%       - pop: array com os indivíduos da população;
+%       - nvar: número de variáveis;
+%       -8 pc: probabilidade de cruzamento atual;
+%       - pm: probabilidade de mutação atual.
+%
+%   Parâmetros de saída:
+%       - pc: nova probabilidade de cruzamento;
+%       - pm: nova probabilidade de mutação.
+
+
+vinf = 0.3;
+vmax = 0.7;
+kc = 1.2;
+km = 1.2;
+
+mdg = calcMdg(pop,nvar);
+
+if mdg < vinf
+  pc = pc / kc;
+  pm = pm * km;
+elseif mdg > vmax
+  pc = pc * kc;
+  pm = pm / km;
+end
+
+end
+
+function [mdg] = calcMdg(pop, nvar)
+%CALCMDG Calcula a medida da diversidade genética.
+%   A medida da diversidade genética da população influencia nas
+%   probabilidades de cruzamento e mutação.
+%
+%   Parâmetros de entrada:
+%       - pop: array com os indivíduos da população;
 %       - nvar: número de variáveis.
 %
 %   Parâmetros de saída:
-%       - e: fitness escalonada (vetor coluna).
+%       - mdg: medida de diversidade genética da população.
 
-columnFit = 3*nvar+2; % Coluna da fitness
-Cmax = 2; % número máximo de cópias do melhor indivíduo.
+columnFit = 3*nvar+2;
 
 fit = pop(:,columnFit);
 fmed = sum(fit) / size(pop,1);
 fmax = max(fit);
-a = (Cmax-1)*fmed / (fmax-fmed);
-b = (1-a) / fmed;
-e = max((a * fit + b), zeros(size(fit)));
+
+mdg = (fmax - fmed) / fmax;
 end
 
-function [g, h] = violacoes(pop, nvar)
-%VIOLACOES Calcula as violações de restrições de restrições um indivíduo.
-%   Retorna, para cada indivíduo, o número de restrições (igualdade
-%   e desigualdade) violadas por suas variáveis).
+function [filhos] = cruzamento(filhos,pais,pai1,pai2,nvar,ind,pc)
+%CRUZAMENTO Faz o cruzamento entre dois indivíduos.
+%   Realiza o cruzamento estre os dois indivíduos cujos índices são
+%   fornecidos e coloca os filhos sequencialmente no vetor de filhos.
+%   Se o cruzamento não for realizado, apenas copia os pais para o
+%   vetor de filhos.
 %
 %   Parâmetros de entrada:
-%       - pop: array de população.
+%       - filhos: array dos filhos;
+%       - pais: array contendo os pais;
+%       - pai1: índice do primeiro pai;
+%       - pai2: índice do segundo pai;
+%       - nvar: número de variáveis;
+%       - ind: índice a primeira linha vaga no array de filhos;
+%       - pc: probabilidade de realização do cruzamento.
+%
+%   Parâmetros de saída:
+%       - filhos: array de filhos (preenchido com novos indivíduos).
+
+
+% Verifica se o cruzamento deve ser realizado; caso contrário, copia.
+if rand > pc
+    filhos(ind,:) = pais(pai1,:);
+    filhos(ind+1,:) = pais(pai2,:);
+else
+    % Determina o melhor e o pior pai.
+    if pai1 < pai2
+        melhor = pai1;
+        pior = pai2;
+    else
+        melhor = pai2;
+        pior = pai1;
+    end
+
+    % Determina os coeficientes
+    kcross = randi(nvar);
+    apol = 0.5 * rand + 0.5;
+    a = 1.2 * rand - 0.1;
+    dir = randi(2) - 1;
+    
+    if dir == 0
+        % Cruzamento para a esquerda
+        filhos(ind,1:kcross) = apol * pais(melhor,1:kcross) + ...
+                               (1-apol) * pais(pior,1:kcross);
+        filhos(ind,(kcross+1):nvar) = pais(melhor,(kcross+1):nvar);
+        filhos(ind+1,1:kcross) = (1-a)*pais(melhor,1:kcross) + ...
+                                 a*pais(pior,1:kcross);
+        filhos(ind+1,(kcross+1):nvar) = pais(pior,(kcross+1):nvar);
+    else
+        % Cruzamento para a direita
+        filhos(ind,1:(kcross-1)) = pais(melhor,1:(kcross-1));
+        filhos(ind,kcross:nvar) = apol*pais(melhor,kcross:nvar) + ...
+                                  (1-apol) * pais(pior,kcross:nvar);
+        filhos(ind+1,1:(kcross-1)) = pais(pior,1:(kcross-1));
+        filhos(ind+1,kcross:nvar) = (1-a)*pais(melhor,kcross:nvar) + ...
+                                    a*pais(pior,kcross:nvar); 
+    end
+end
+end
+
+function [selecionados] = selecao(pais,nfilhos)
+%SELECTION Seleciona os pais que participarão dos próximos processos.
+%   Utiliza torneio binário.
+%
+%   Parâmetros de entrada:
+%       - pais: array contendo os pais;
+%       - nfilhos: número de filhos.
+%
+%   Parâmetros de saída:
+%       - filhos: vetor com índices dos pais selecionados.
+
+npais = size(pais,1);   % quantidade de pais.
+ultimo = -1;            % índice do último pai selecionado.
+selecionados = zeros(1,nfilhos);
+
+f = 1;
+while f <= nfilhos
+    % Seleciona dois pais para o torneio.
+    p1 = randi(npais);
+    p2 = randi(npais);
+    while p1 == p2
+        p2 = randi(npais);
+    end
+    
+    % Determina o melhor e o pior
+    if p1 < p2
+        melhor = p1;
+        pior = p2;
+    else
+        melhor = p2;
+        pior = p1;
+    end
+    
+    %delta = 0.02*(1 - pais(pior,8) / (pais(melhor,8)+realmin));
+    %display(delta);
+    prob = 0.75; % + delta;
+    
+    % Torneio
+    if rand < prob
+        selecionado = melhor;
+    else
+        selecionado = pior;
+    end
+    
+    % Evita o cruzamento de um indivíduo consigo mesmo
+    if rem(f,2) == 0 && ultimo == selecionado
+        continue;
+    end
+    
+    % Registra o pai selecionado
+    ultimo = selecionado;
+    selecionados(f) = selecionado;
+    f = f + 1;
+end
+end
+
+function [pop] = popSort(pop,nvar)
+%POPSORT Ordena o array de populaçao.
+%   Ordena o array de população do melhor para o pior indivíduo.
+%
+%   Parâmetros de entrada:
+%       - pop: array de população;
 %       - nvar: número de variáveis.
 %
 %   Parâmetros de saída:
-%       - g: número de restrições de desigualdade violadas por indivíduo;
-%       - h: número de restrições de igualdade violadas por indivíduo.
+%       - pop: array de população ordenado.
 
-columnsX = 1:nvar;
-columnsG = nvar+1 : 2*nvar;
-columnsH = 2*nvar+1 : 3*nvar;
+columnFit = 3*nvar+2; % Coluna do valor de fitness.
+columnVG = 3*nvar+3;  % Coluna de violações de restrição <=.
+columnVH = 3*nvar+4;  % Coluna de violações de restrição =.
 
-g = sum(abs(round(pop(:,columnsX))),2) + ...
-        sum((pop(:,columnsG) > 0),2) * 10;
-h = sum(pot10(pop(:,columnsH)),2);
+%Ordena pela função de fitness apenas (decrescente).
+pop = sortrows(pop, -columnFit);
+
+%Ordena pela quantidade de violações e pela fitness (decrescente).
+%pop = sortrows(pop,[columnVH -columnFit columnVG]);
+%pop = sortrows(pop,[columnVG columnVH -columnFit]);
 end
 
 function p = pot10(n)
@@ -611,8 +725,150 @@ end
 
 end
 
-% Esta função de fitness foi descartada por apresentar pior resultado
-%function [pop] = fitness_inv(f, gle, geq, r, s, n, pop, nvar)
+function [g, h] = violacoes(pop, nvar)
+%VIOLACOES Calcula as violações de restrições de restrições um indivíduo.
+%   Retorna, para cada indivíduo, o número de restrições (igualdade
+%   e desigualdade) violadas por suas variáveis).
+%
+%   Parâmetros de entrada:
+%       - pop: array de população.
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - v: número de restrições violadas por indivíduo(vetor coluna).
+
+columnsX = 1:nvar;
+columnsG = nvar+1 : 2*nvar;
+columnsH = 2*nvar+1 : 3*nvar;
+
+viol = sum(abs(round(pop(:,columnsX))),2) + sum((pop(:,columnsG) > 0),2) * 10;
+%viol = sum((pop(:,columnsG) > 0),2) * 10;
+
+%g = sum((pop(:,columnsG) > 0),2) + sum(abs(pop(:,columnsH)) > delta,2);
+
+%g = sum((pop(:,columnsG) > 0),2);
+%g = sum(((pop(:,columnsX) < (-5/12)) + (pop(:,columnsX) > (-1/12))),2);
+%h = sum(pot10(pop(:,columnsH)),2);
+h = viol;
+g = sum(pot10(pop(:,columnsH)),2);
+end
+
+%function [v] = violacoes(pop, nvar)
+%VIOLACOES Calcula o número restrições violadas por um indivíduo.
+%   Retorna, para cada indivíduo, o número de restrições (igualdade
+%   e desigualdade) violadas por suas variáveis).
+%
+%   Parâmetros de entrada:
+%       - pop: array de população.
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - v: número de restrições violadas por indivíduo(vetor coluna).
+
+%columnsG  = nvar+1 : 2*nvar;
+%columnsH  = 2*nvar+1 : 3*nvar;
+
+% Variação admissível no teste de violação da restrição de igualdade
+% (testes de igualdade com valores em ponto flutuante não são precisos).
+%delta = 0.0000001;
+%delta = 0.1;
+
+%nv = sum((ceil(10 .^ (max(0,pop(:,columnsG))))-1),2) + sum((ceil(10 .^ abs(pop(:,columnsH)))-1),2);
+%display([pop(:,columnsG) pop(:,columnsH)]);
+%display(nv)
+
+%v = sum((pop(:,columnsG) > 0),2) + sum((pop(:,columnsH) ~= 0),2);
+%v = sum((pop(:,columnsG) > 0),2) + sum(abs(pop(:,columnsH)) > delta,2);
+%v = nv;
+%end
+
+function [pop] = fitness(ft, f, gle, geq, r, s, n, pop, nvar)
+%FITNESS Função de fitness.
+%   Calcula a fitness dos indivíduos da população. Esta função é
+%   apenas um "stub" que recebe a função de fitness específica a
+%   utilizar no cálculo.
+%
+%   Parâmetros de entrada:
+%       - ft: handle da função de fitness;
+%       - f: handle da função de otimização original;
+%       - gle: handle da função de restrição de desigualdade;
+%       - geq: handle da função de restrição de igualdade;
+%       - r: parâmetro de penalidade para a restrição de desigualdade;
+%       - s: parâmetro de penalidade para a restrição de igualdade;
+%       - n: parâmetro de escalonamento da função de fitness;
+%       - pop: array contendo a população (um indivíduo por linha);
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - pop: array de população com valores calculados.
+
+columnFit = 3*nvar+2;
+columnVG = 3*nvar+3;
+columnVH = 3*nvar+4;
+
+pop = ft(f, gle, geq, r, s, n, pop, nvar);
+%pop(:,columnFit) = escalonamento(pop,nvar);
+pop(:,columnFit) = escalonamento2(pop,nvar);
+[g, h] = violacoes(pop,nvar);
+%pop(:,columnVG) = violacoes(pop,nvar);
+pop(:,columnVG) = g;
+pop(:,columnVH) = h;
+end
+
+function [e] = escalonamento(pop,nvar)
+%ESCALONAMENTO Faz o escalonamento da fitness dos indivíduos.
+%   Escalona a fitness dos indivíduos para evitar que um "superindivíduo"
+%   domine a população. Utiliza escalonamento linear.
+%
+%   Parâmetros de entrada:
+%       - pop: array de população.
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - e: fitness escalonada (vetor coluna).
+
+columnFit = 3*nvar+2; % Coluna da fitness
+Cmax = 2; % número máximo de cópias do melhor indivíduo.
+
+fit = pop(:,columnFit);
+fmed = sum(fit) / size(pop,1);
+fmax = max(fit);
+a = (Cmax-1)*fmed / (fmax-fmed);
+b = (1-a) / fmed;
+e = max((a * fit + b), zeros(size(fit)));
+end
+
+function [e] = escalonamento2(pop,nvar)
+%ESCALONAMENTO Faz o escalonamento da fitness dos indivíduos.
+%   Escalona a fitness dos indivíduos para evitar que um "superindivíduo"
+%   domine a população. Utiliza escalonamento sigma truncado.
+%
+%   Parâmetros de entrada:
+%       - pop: array de população.
+%       - nvar: número de variáveis.
+%
+%   Parâmetros de saída:
+%       - e: fitness escalonada (vetor coluna).
+
+columnFit = 3*nvar+2; % Coluna da fitness
+%Cmax = 2; % número máximo de cópias do melhor indivíduo.
+C = 1;    % Quantidade de desvios padrões.
+
+fit = pop(:,columnFit);
+fmed = sum(fit) / size(pop,1);
+
+sigma = sqrt((sum((fit - fmed) .^ 2)) / (size(pop,1)-1));
+
+e = max(0, fit - (fmed - C * sigma));
+%display(e);
+
+%fmax = max(fit);
+%a = (Cmax-1)*fmed / (fmax-fmed);
+%b = (1-a) / fmed;
+%e = max((a * fit + b), zeros(size(fit)));
+end
+
+function [pop] = fitness_inv(f, gle, geq, r, s, n, pop, nvar)
 %FITNESS_INV Função de fitness pelo método de inversão.
 %   Calcula a fitness dos indivíduos da população pelo método de
 %   inversão (transformando um problema de minimização em maximização).
@@ -630,14 +886,14 @@ end
 %   Parâmetros de saída:
 %       - pop: array de população com valores calculados.
 
-%columnFit = 3*nvar+2;
+columnFit = 3*nvar+2;
 
-%[h,pop] = fmod(f, gle, geq, r, s, pop, nvar);
-%d = 1 ./ (h - (min(h) - (10 ^ -n)));
-%pop(:,columnFit) = d;
-%end
+[h,pop] = fmod(f, gle, geq, r, s, pop, nvar);
+d = 1 ./ (h - (min(h) - (10 ^ -n)));
+pop(:,columnFit) = d;
+end
 
-%function [par] = fitpar_inv(ngen)
+function [par] = fitpar_inv(ngen)
 %FITPAR_DESC Parâmetro para cálculo da fitness pelo método de inversão.
 %   Retorna, para cada geração, o valor do parâmetro n para o cálculo
 %   da fitness pelo método de deslocamento.
@@ -649,8 +905,8 @@ end
 %       - vetor com (ngen+1) valores do parâmetro (um para cada geração,
 %         mais a população inicial).
 
-%par = 0.1 : ((1.0 - 0.1) / ngen) : 1.0;
-%end
+par = 0.1 : ((1.0 - 0.1) / ngen) : 1.0;
+end
 
 function [pop] = fitness_desc(f, gle, geq, r, s, k, pop, nvar)
 %FITNESS_DESC Função de fitness pelo método de deslocamento.
