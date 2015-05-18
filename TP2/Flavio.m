@@ -28,7 +28,7 @@ function [ x, f, g, h ] = Flavio( ncal, nvar )
 % do número máximo de cálculos da função
 % de fitness, considerando npop cálculos 
 % por geração, mais npop cálculos para 
-% a população inicial.%if nvar < 4
+% a população inicial.
 npop = 200;
 ngen = floor((ncal / npop) - 1);
 if ngen < 50
