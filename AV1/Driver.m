@@ -10,7 +10,7 @@ ft = 0;
 pt = 0;
 for i = 1:nexe
     [x,f,p] = Flavio(ncalc,nvar);
-    display([x, f, p]);
+    %display([x, f, p]);
     deltax = deltax + sum(abs(x-result));
     ft = ft + abs(bench-f);
     pt = pt + p;
