@@ -18,17 +18,16 @@ function [ x, f, p ] = Flavio( ncal, nvar )
 % objetivo, considerando npop cálculos 
 % por iteracao, mais npop cálculos para 
 % o enxame inicial.
-nexm = 10;
-%nexm = 200;
+nexm = 200;
 nit = floor((ncal / nexm) - 1);
-%if nit < 50
-%    nexm = 100;
-%    nit = floor((ncal / nexm) - 1);
-%    if nit < 50
-%        nexm = 50;
-%        nit = floor((ncal / nexm) - 1);
-%    end
-%end
+if nit < 50
+    nexm = 100;
+    nit = floor((ncal / nexm) - 1);
+    if nit < 50
+        nexm = 50;
+        nit = floor((ncal / nexm) - 1);
+    end
+end
 
 fc   = @rastrigin;        % Handle da função objetivo.
 gle = @rastrigin_le;      % Handle da função de restrição de desigualdade.
@@ -101,11 +100,6 @@ colVHB = vhb;
 colPB  = fpb;
 colFB  = fbo;
 colXL  = xli:xlf;
-colGL  = gli:glf;
-colHL  = hli:hlf;
-colVGL = vgl;
-colVHL = vhl;
-colPL  = flp;
 colFL  = flo;
 colV   = vi:vf;
 colVZ  = vz;
@@ -113,16 +107,22 @@ colVZ  = vz;
 % Determinação da velocidade máxima das partículas
 vmax = abs((xmax - xmin)) * 0.3;
 
+% Tamanho da vizinahça social.
+% Cada partícula interage (em média)
+% com 10*p% do enxame.
+p = 0.2;
+
 % Estabelecimento do enxame inicial.
-exm = exminit(nexm,nc,xmin,xmax,vmax,colX,colV,colVZ);
+exm = exminit(nexm,nc,xmin,xmax,vmax,p,colX,colV,colVZ);
 
 % Execução do algoritmo genético para otimização.
-[x, f, p] = pso(exm,nit,fc,gle,geq,xmin,xmax,vmax, ...
-                colX,colG,colH,colVG,colVH,colP,colF,colXB,colGB,colHB,colVGB,colVHB,colPB,colFB,colXL,colGL,colHL,colVGL,colVHL,colPL,colFL,colV,colVZ);
+[x, f, p] = pso(exm,nit,fc,gle,geq,xmin,xmax,vmax,p, ...
+                colX,colG,colH,colVG,colVH,colP,colF,colXB,colGB, ...
+                colHB,colVGB,colVHB,colPB,colFB,colXL,colFL,colV,colVZ);
 
 end
 
-function [exm] = exminit (nexm, nc, xmin, xmax, vmax, colX, colV, colVZ)
+function [exm] = exminit (nexm, nc, xmin, xmax, vmax, p, colX, colV, colVZ)
 %EXMINIT Geração do enxame inicial.
 %   Gera o enxame com nexm partículas Cada
 %   variável tem valores limitados à faixa [xmin,xmax].
@@ -133,6 +133,7 @@ function [exm] = exminit (nexm, nc, xmin, xmax, vmax, colX, colV, colVZ)
 %       - xmin: valor mínimo de uma variável;
 %       - xmax: valor máximo de uma variável;
 %       - vmax: velocidade máxima das partículas;
+%       - p: abrangência da vizinhaça social;
 %       - colX: colunas das variáveis;
 %       - colV: coluna das velocidades;
 %       - colVZ: coluna da vizinhança.
@@ -152,14 +153,13 @@ exm(:,colV) = 2 * vmax * rand(nexm,max(colX)) - vmax;
         
 % Inicializa a vizinhança. Cada partícula interage (em média)
 % com 10*p% do enxame;
-%p = 0.1;
-p = 0.5;
 exm(:,colVZ) = randi(round(nexm * p),nexm,1);
 
 end
 
-function [ x, f, p ] = pso(exm,nit,fc,gle,geq,xmin,xmax,vmax, ...
-           colX,colG,colH,colVG,colVH,colP,colF,colXB,colGB,colHB,colVGB,colVHB,colPB,colFB,colXL,colGL,colHL,colVGL,colVHL,colPL,colFL,colV,colVZ)
+function [ x, f, p ] = pso(exm,nit,fc,gle,geq,xmin,xmax,vmax,pb, ...
+           colX,colG,colH,colVG,colVH,colP,colF,colXB,colGB,colHB, ...
+           colVGB,colVHB,colPB,colFB,colXL,colFL,colV,colVZ)
 %PSO Função principal do algoritmo.
 %   Executa o algoritmo particle swarm (pso) para otimização
 %   da função objetivo.
@@ -173,6 +173,7 @@ function [ x, f, p ] = pso(exm,nit,fc,gle,geq,xmin,xmax,vmax, ...
 %       - xmin: valor mínimo de uma variável;
 %       - xmax: valor máximo de uma variável;
 %       - vmax: valor máximo para a velocidade de uma partícula;
+%       - pb: abrangência da vizinhaça social;
 %       - colX: colunas das variáveis;
 %       - colG: colunas das restrições de desigualdade;
 %       - colH: colunas das restrições de igualdade;
@@ -215,8 +216,6 @@ s = 1 : ((10^8 - 1) / nit) : 10^8;
 
 % Parâmetros de peso de inércia
 w = 0.9 : -((0.9 - 0.4) / nit) : 0.4;
-k = 0.73; % ATENÇÃO: variar
-
 
 % Cálculos iniciais para a primeira iteração
 exm = avaliacao(exm,fc,gle,geq,r(1),s(1),colX,colG,colH,colVG,colVH,colP,colF);
@@ -230,45 +229,73 @@ exm(:,colVHB) = exm(:,colVH);
 exm(:,colPB)  = exm(:,colP);
 exm(:,colFB)  = exm(:,colF);
 
-% Quantidade de partículas
+% Quantidade de partículas e variáveis.
 npart = size(exm,1);
+nvar = max(colX);
 
 % Preenche os dados lbest de todas as partículas
 for p = 1:npart
-    exm(p,:) = lbest(p,exm,colB,colL,colVG,colVH,colP,colVZ);
+    %exm(p,:) = lbest(p,exm,colD,colL,colVG,colVH,colP,colVZ);
+    exm(p,:) = lbest(p,exm,colB,colL,colF,colVZ);
 end
 
 % Loop principal
-c1 = 2.05; % parâmetro de aprendizagem cognitiva. (1.49)
-c2 = 2.05; % parâmetro de aprendizagem social.    (1.49)
+t1max = 2.05;   % Valores máximos dos fatores
+t2max = 2.05;   % de aprendizagem.
 for it = 1:nit
 %for it = 1:1
     
+    % Determina os fatores de aprendizagem (randomizados).
+    t1 = t1max * rand(npart,nvar); % Corresponde a c1 * rand.
+    t2 = t2max * rand(npart,nvar); % Corresponde a c2 * rand.
+
+    % Determina o coeficiente de contração
+    k = (2/(t1max+t2max-2)) * rand(npart,nvar);
+    
     % Calcula as novas velocidades
-    v = k * (w(it) * exm(:,colV) + ...
-     c1 * rand([npart, (max(colX))]) .* (exm(:,colX) - exm(:,colXB)) + ...
-     c2 * rand([npart, (max(colX))]) .* (exm(:,colX) - exm(:,colXL)));
+    v = k .* (w(it) * exm(:,colV) + ...
+             t1 .* (exm(:,colXB) - exm(:,colX)) + ...
+             t2 .* (exm(:,colXL) - exm(:,colX)));
  
     % Mantém velocidades dentro dos limites
     v = min(vmax, max(-vmax, v));
     
     % Atualiza as posições e as velocidades
-    display(exm(1:5,:));
     exm(:,colX) = exm(:,colX) + v;
     exm(:,colV) = v;
     
+    % Mantém as variáveis dentro dos limites
+    exm(:,colX) = min(xmax, max(xmin, exm(:,colX)));
+    
     % Avalia os novos dados
     exm = avaliacao(exm,fc,gle,geq,r(it+1),s(it+1),colX,colG,colH,colVG,colVH,colP,colF);
-    exm = calcBest(exm,colD,colB,colVG,colVH,colF);
 
+%    display([exm(:,1:8), exm(:,10)]);
+%    display([exm(:,11:18), exm(:,20)]);
+    exm = calcBest(exm,colD,colB,colVG,colVH,colF);
+%    display([exm(:,1:8), exm(:,10)]);
+%    display([exm(:,11:18), exm(:,20)]);
+
+    exm(:,colVZ) = randi(round(npart * pb),npart,1);
+    
     % Preenche os dados lbest de todas as partículas
+    %display([exm(:,21:28), exm(:,30)]);
     for p = 1:npart
-        exm(p,:) = lbest(p,exm,colB,colL,colVG,colVH,colP,colVZ);
+        %exm(p,:) = lbest(p,exm,colD,colL,colVG,colVH,colP,colVZ);
+        exm(p,:) = lbest(p,exm,colB,colL,colF,colVZ);
     end
+    %display([exm(:,21:28), exm(:,30)]);
+    
+    %display([exm(:,1:8), exm(:,10)]);
 
 end
 
-display(exm);
+%exm(:,colVG) = exm(:,colVG) + exm(:,colVH);
+
+%exm = sortrows(exm,[colVG,colP]);
+exm = sortrows(exm,colP);
+
+%display([exm(1,1:max(colX)), exm(1,colF)]);
 
 % Retorna o melhor resultado
 best = 1;
@@ -278,7 +305,7 @@ p = sum(max(0,exm(best,colG))) + sum(abs(exm(best,colH)));
 
 end
 
-function part =  lbest(ind,exm,colB,colL,colVG,colVH,colF,colVZ)
+function part =  lbest(ind,exm,colB,colL,colF,colVZ)
 %LBEST Calcula o lbest para uma partícula.
 %   Faz o cálculo dos valores lbest para uma partícula. Estes valores
 %   são diferentes para cada partícula, dependendo da topologia
@@ -315,7 +342,8 @@ end
 melhor = lexm(1,colB);
 
 for p = 2:size(lexm,1)
-    melhor = compara(melhor,lexm(p,colB),colVG,colVH,colF);
+    %melhor = comparaFaixa(melhor,lexm(p,colB),colVG,colVH,colF);
+    melhor = comparaValor(melhor,lexm(p,colB),colF);
 end
 
 part(colL) = melhor;
@@ -351,7 +379,7 @@ function lexm = vring(ind,exm)
 %   Parâmetros de saída:
 %       - lexm: vizinhança da partícula.
 
-k = 2;  % anel tem k partículas antes e k depois.
+k = 5;  % anel tem k partículas antes e k depois.
 nexm = size(exm,1);
 aux = [exm(nexm-k+1:nexm,:); exm; exm(1:k,:)];
 lexm = aux(ind:ind+2*k,:);
@@ -397,13 +425,14 @@ function [exm] = calcBest(exm,colD,colB,colVG,colVH,colF)
 %       - exm: enxame atualizado.
 
 for p = 1:size(exm,1)
-    melhor = compara(exm(p,colD),exm(p,colB),colVG,colVH,colF);
+    melhor = comparaFaixa(exm(p,colD),exm(p,colB),colVG,colVH,colF);
+    %melhor = comparaValor(exm(p,colD),exm(p,colB),colF);
     exm(p,colB) = melhor;
 end
 
 end
 
-function [melhor] = compara(part1,part2,colVG,colVH,colF)
+function [melhor] = comparaFaixa(part1,part2,colVG,colVH,colO)
 %COMPARA Compara duas partículas e retorna a melhor.
 %   Compara os valores de função objetivo e violações de restrições
 %   e retorna os da mais adequada.
@@ -413,29 +442,52 @@ function [melhor] = compara(part1,part2,colVG,colVH,colF)
 %       - part2: valores da partícula 2;
 %       - colVG: coluna de violações de desigualdade;
 %       - colVH: coluna de violações de igualdade;
-%       - colF: coluna da função objetivo.
+%       - colO: coluna da função objetivo.
 %
 %   Parâmetros de saída:
 %       - melhor: valores da melhor partícula.
 
 % Quantidade de violações das partículas.
-%v1 = part1(colVG) + part1(colVH);
-%v2 = part2(colVG) + part2(colVH);
+v1g = round(part1(colVG));
+v1h = round(part1(colVH));
+v2g = round(part2(colVG));
+v2h = round(part2(colVH));
+
 
 % Seleciona a que viola menos restrições; em caso de empate,
-% a de menor função objetivo.
-%if v1 < v2
-%    melhor = part1;
-%elseif v2 < v1
-%    melhor = part2;
-%elseif part1(colF) <= part2(colF)
-%    melhor = part1;
-%else
-%    melhor = part2;
-%end
+% a de menor função objetivo. Prioriza as restrições de
+% desigualdade.
+if v1h < v2h
+    melhor = part1;
+elseif v2h < v1h
+    melhor = part2;
+elseif v1g < v2g
+    melhor = part1;
+elseif v1g > v2g
+    melhor = part2;
+elseif part1(colO) <= part2(colO)
+    melhor = part1;
+else
+    melhor = part2;
+end
 
-% Compara apenas a função objetivo
-if part1(colF) <= part2(colF)
+end
+
+function [melhor] = comparaValor(part1,part2,colO)
+%COMPARA Compara duas partículas e retorna a melhor.
+%   Compara os valores de função objetivo
+%   e retorna os da mais adequada.
+%
+%   Parâmetros de entrada:
+%       - part1: valores da partícula 1;
+%       - part2: valores da partícula 2;
+%       - colO: coluna da função objetivo.
+%
+%   Parâmetros de saída:
+%       - melhor: valores da melhor partícula.
+
+% Compara a função objetivo
+if part1(colO) <= part2(colO)
     melhor = part1;
 else
     melhor = part2;
@@ -471,41 +523,17 @@ exm(:,colG) = gle(exm(:,colX)); % restrições de desigualdade
 exm(:,colH) = geq(exm(:,colX)); % restrições de igualdade
 
 % Função objetivo penalizada
-%exm(:,colP) = exm(:,colF) + r * sum((max(0, exm(:,colG)) .^ 2),2) + ...
-%                            s * sum((exm(:,colH) .^ 2),2);
+exm(:,colP) = exm(:,colF) + r * sum((max(0, exm(:,colG)) .^ 2),2) + ...
+                            s * sum((exm(:,colH) .^ 2),2);
 
-exm(:,colVG) = sum((exm(:,colG) > 0),2);  % violações de desigualdade
-%exm(:,colVG) = sum(max(0,exm(:,colG)),2); % violações de desigualdade
+%exm(:,colVG) = sum((exm(:,colG) > 0),2);  % violações de desigualdade
+exm(:,colVG) = sum(max(0,exm(:,colG)),2); % violações de desigualdade
 
-exm(:,colVH) = sum(pot10(exm(:,colH)),2); % violações de igualdade
-%exm(:,colVH) = sum((exm(:,colH) ~= 0),2); % violações de igualdade
-%exm(:,colVH) = sum(abs(exm(:,colH)),2);   % violações de igualdade
-
-end
-
-function p = pot10(n)
-%POT10 Próxima potência de 10.
-%   Calcula p tal que 10^p >= abs(n).
-%
-%   Parâmetros de entrada:
-%       - n: array de números a examinar.
-%
-%   Parâmetros de saída:
-%       - p: array com as próximas potências de 10.
-
-i = find(n == 0);
-if ~isempty(i)  % Evita logaritmo de 0
-    n(i) = realmin;
-end
-
-f = log10(abs(n));
-p = floor(f) + 1;
-z = find((floor(f)-f) == 0); % É potência de 10 exata?
-if ~isempty(z)
-   p(z) = f(z);
-end
+%exm(:,colVH) = sum(pot10(exm(:,colH)),2); % violações de igualdade
+exm(:,colVH) = sum(abs(exm(:,colH)),2);   % violações de igualdade
 
 end
+
 %------------------------------------------------------------------------%
 % Função de Rastrigin e restrições
 %------------------------------------------------------------------------%
