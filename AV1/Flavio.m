@@ -1,3 +1,10 @@
+% Flávio Velloso Laper
+%
+% Computação evolucionária
+% Prof. João Antônio de Vasconcelos
+%
+% Avaliação 1
+
 function [ x, f, p ] = Flavio( ncal, nvar )
 %FLAVIO Avaliação 1 de Computação Evolucionária - Flávio Laper.
 %   Esta função implementa um algoritmo PSO para minimizar a
@@ -107,7 +114,7 @@ colVZ  = vz;
 % Determinação da velocidade máxima das partículas
 vmax = abs((xmax - xmin)) * 0.3;
 
-% Tamanho da vizinahça social.
+% Tamanho da vizinhança social.
 % Cada partícula interage (em média)
 % com 10*p% do enxame.
 p = 0.2;
@@ -151,8 +158,7 @@ exm(:,colX) = xmin * ones(nexm,max(colX))  + ...
 % Inicializa as velocidades.
 exm(:,colV) = 2 * vmax * rand(nexm,max(colX)) - vmax;
         
-% Inicializa a vizinhança. Cada partícula interage (em média)
-% com 10*p% do enxame;
+% Inicializa a vizinhança.
 exm(:,colVZ) = randi(round(nexm * p),nexm,1);
 
 end
@@ -211,8 +217,8 @@ colL = min(colXL):colFL;  % Colunas com os dados lbest;
 % Parâmetros de penalidade para a função objetivo modificada para
 % problema sem restrições. A penalidade pelo desrespeito às restrições
 % aumenta a cada geração.
-r = 1 : ((10^8 - 1) / nit) : 10^8;
-s = 1 : ((10^8 - 1) / nit) : 10^8;
+r = 1 : ((10^8 - 1) / nit) : 10^12;
+s = 1 : ((10^8 - 1) / nit) : 10^12;
 
 % Parâmetros de peso de inércia
 w = 0.9 : -((0.9 - 0.4) / nit) : 0.4;
@@ -235,13 +241,12 @@ nvar = max(colX);
 
 % Preenche os dados lbest de todas as partículas
 for p = 1:npart
-    %exm(p,:) = lbest(p,exm,colD,colL,colVG,colVH,colP,colVZ);
     exm(p,:) = lbest(p,exm,colB,colL,colF,colVZ);
 end
 
 % Loop principal
-t1max = 2.05;   % Valores máximos dos fatores
-t2max = 2.05;   % de aprendizagem.
+t1max = 1.5;   % Valores máximos dos fatores
+t2max = 2.51;   % de aprendizagem.
 for it = 1:nit
 %for it = 1:1
     
@@ -250,6 +255,7 @@ for it = 1:nit
     t2 = t2max * rand(npart,nvar); % Corresponde a c2 * rand.
 
     % Determina o coeficiente de contração
+    % de modo a garantir a estabilidade do algoritmo.
     k = (2/(t1max+t2max-2)) * rand(npart,nvar);
     
     % Calcula as novas velocidades
@@ -268,36 +274,25 @@ for it = 1:nit
     exm(:,colX) = min(xmax, max(xmin, exm(:,colX)));
     
     % Avalia os novos dados
-    exm = avaliacao(exm,fc,gle,geq,r(it+1),s(it+1),colX,colG,colH,colVG,colVH,colP,colF);
+    exm = avaliacao(exm,fc,gle,geq,r(it+1),s(it+1), ...
+                    colX,colG,colH,colVG,colVH,colP,colF);
 
-%    display([exm(:,1:8), exm(:,10)]);
-%    display([exm(:,11:18), exm(:,20)]);
+    % Calcula os novos melhores valores
     exm = calcBest(exm,colD,colB,colVG,colVH,colF);
-%    display([exm(:,1:8), exm(:,10)]);
-%    display([exm(:,11:18), exm(:,20)]);
 
+    % Gera novas vizinhanças
     exm(:,colVZ) = randi(round(npart * pb),npart,1);
     
     % Preenche os dados lbest de todas as partículas
-    %display([exm(:,21:28), exm(:,30)]);
     for p = 1:npart
-        %exm(p,:) = lbest(p,exm,colD,colL,colVG,colVH,colP,colVZ);
         exm(p,:) = lbest(p,exm,colB,colL,colF,colVZ);
     end
-    %display([exm(:,21:28), exm(:,30)]);
-    
-    %display([exm(:,1:8), exm(:,10)]);
 
 end
 
-%exm(:,colVG) = exm(:,colVG) + exm(:,colVH);
-
-%exm = sortrows(exm,[colVG,colP]);
+% Retorna o melhor resultado
 exm = sortrows(exm,colP);
 
-%display([exm(1,1:max(colX)), exm(1,colF)]);
-
-% Retorna o melhor resultado
 best = 1;
 x = exm(best,colX);
 f = exm(best,colF);
@@ -342,7 +337,6 @@ end
 melhor = lexm(1,colB);
 
 for p = 2:size(lexm,1)
-    %melhor = comparaFaixa(melhor,lexm(p,colB),colVG,colVH,colF);
     melhor = comparaValor(melhor,lexm(p,colB),colF);
 end
 
@@ -426,7 +420,6 @@ function [exm] = calcBest(exm,colD,colB,colVG,colVH,colF)
 
 for p = 1:size(exm,1)
     melhor = comparaFaixa(exm(p,colD),exm(p,colB),colVG,colVH,colF);
-    %melhor = comparaValor(exm(p,colD),exm(p,colB),colF);
     exm(p,colB) = melhor;
 end
 
@@ -456,7 +449,7 @@ v2h = round(part2(colVH));
 
 % Seleciona a que viola menos restrições; em caso de empate,
 % a de menor função objetivo. Prioriza as restrições de
-% desigualdade.
+% igualdade.
 if v1h < v2h
     melhor = part1;
 elseif v2h < v1h
@@ -526,10 +519,8 @@ exm(:,colH) = geq(exm(:,colX)); % restrições de igualdade
 exm(:,colP) = exm(:,colF) + r * sum((max(0, exm(:,colG)) .^ 2),2) + ...
                             s * sum((exm(:,colH) .^ 2),2);
 
-%exm(:,colVG) = sum((exm(:,colG) > 0),2);  % violações de desigualdade
 exm(:,colVG) = sum(max(0,exm(:,colG)),2); % violações de desigualdade
 
-%exm(:,colVH) = sum(pot10(exm(:,colH)),2); % violações de igualdade
 exm(:,colVH) = sum(abs(exm(:,colH)),2);   % violações de igualdade
 
 end

@@ -1,5 +1,5 @@
 nvar = 5;
-ncalc = 2000;
+ncalc = 20000;
 nexe = 30;
 
 
