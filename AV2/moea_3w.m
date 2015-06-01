@@ -30,6 +30,9 @@ npop = 10;
 % Estabelecimento da polulação inicial.
 pop = popinit(npop,xmin,xmax,L);
 
+% Teste
+pop = dtlz1(pop,nvar,no,L);
+
 % Retorno do resultado
 ps = pop;
 end
@@ -45,7 +48,7 @@ function [pop] = popinit (npop, xmin, xmax, L)
 %     - L: layout de um indivíduo.
 %
 %   Parâmetros de saída:
-%     - pop: arrau contendo a população inicial.
+%     - pop: array contendo a população inicial.
 
 % Aloca o array.
 pop = zeros(npop, L.NC);
@@ -53,5 +56,36 @@ pop = zeros(npop, L.NC);
 % Inicializa as variáveis.
 pop(:,L.COLX) = xmin * ones(npop,max(L.COLX)) + ...
                 (xmax - xmin) * rand(npop,max(L.COLX));
+end
+
+function pop = dtlz1 (pop,nvar,no,L)
+%DTLZ1 Função dtlz1.
+%   Calcula as funções objetivo DTLZ1 para todos os indivíduos
+%   da população.
+%
+%   Parâmetros de entrada:
+%     - pop: população;
+%     - nvar: número de variáveis;
+%     - no: núemro de funções objetivo;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - pop: população com os valores das funções objetivo.
+
+if no > nvar
+    ME = MException('dtlz1:nvarError','Invalid number of variables');
+    throw(ME);
+end
+
+% Colunas das variáveis.
+xi = min(L.COLX);
+xf = max(L.COLX);
+k = nvar - no + 1;
+xg = pop(:,no:nvar);
+
+gx = 100 * (k + sum(((xg-0.5) .^ 2) - cos(20*pi*(xg-0.5)),2));
+display(gx);
+
+pop(:,L.COLF) = 1;
 end
 
