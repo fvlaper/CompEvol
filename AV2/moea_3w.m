@@ -31,7 +31,8 @@ npop = 10;
 pop = popinit(npop,xmin,xmax,L);
 
 % Teste
-pop = dtlz1(pop,nvar,no,L);
+%pop = dtlz1(pop,nvar,no,L);
+pop = dtlz2(pop,nvar,no,L);
 
 % Retorno do resultado
 ps = pop;
@@ -79,13 +80,62 @@ end
 
 % Colunas das variáveis.
 xi = min(L.COLX);
-xf = max(L.COLX);
+fi = min(L.COLF);
+ff = max(L.COLF);
 k = nvar - no + 1;
+
 xg = pop(:,no:nvar);
 
+% Cálculo
 gx = 100 * (k + sum(((xg-0.5) .^ 2) - cos(20*pi*(xg-0.5)),2));
-display(gx);
 
-pop(:,L.COLF) = 1;
+pop(:,fi) = 0.5 * (prod(pop(:,xi:(no-1)),2) .* (1+gx));
+
+for i = 2:(no-1)
+  pop(:,(fi+i-1)) = 0.5 * (prod((pop(:,xi:(no-i))),2) .* ...
+                           (1 - pop(:,(no-i+1))) .* (1+gx));
 end
 
+pop(:,ff) = 0.5 * ((1 - pop(:,xi)) .* (1+gx));
+
+end
+
+function pop = dtlz2 (pop,nvar,no,L)
+%DTLZ1 Função dtlz1.
+%   Calcula as funções objetivo DTLZ2 para todos os indivíduos
+%   da população.
+%
+%   Parâmetros de entrada:
+%     - pop: população;
+%     - nvar: número de variáveis;
+%     - no: núemro de funções objetivo;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - pop: população com os valores das funções objetivo.
+
+if no > nvar
+    ME = MException('dtlz2:nvarError','Invalid number of variables');
+    throw(ME);
+end
+
+% Colunas das variáveis.
+xi = min(L.COLX);
+fi = min(L.COLF);
+ff = max(L.COLF);
+
+xg = pop(:,no:nvar);
+
+% Cálculo
+gx = sum(((xg-0.5) .^ 2),2);
+
+pop(:,fi) = (1+gx) .* prod(cos(0.5*pi*pop(:,xi:(no-1))),2);
+
+for i = 2:(no-1)
+    pop(:,(fi+i-1)) = (1+gx) .* prod(cos(0.5*pi*pop(:,xi:(no-i))),2) .* ...
+                                sin(0.5*pi*pop(:,(no-i+1)));
+end
+
+pop(:,ff) = (1+gx) .* sin(0.5*pi*pop(:,xi));
+
+end
