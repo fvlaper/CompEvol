@@ -41,6 +41,7 @@ pop = popinit(npop,xmin,xmax,L);
 pop = dtlz1(pop,nvar,no,L);
 %pop = dtlz2(pop,nvar,no,L);
 
+pop = agregacao(pop,L);
 pop = pareto(pop,L);
 
 % Retorno do resultado
@@ -66,6 +67,23 @@ pop = zeros(npop, L.NC);
 % Inicializa as variáveis.
 pop(:,L.COLX) = xmin * ones(npop,max(L.COLX)) + ...
                 (xmax - xmin) * rand(npop,max(L.COLX));
+end
+
+function pop = agregacao(pop,L)
+%AGREGACAO Calcula o valor agregado das funções objetivo.
+%   Calcula o valor agregado das funções objetivo utilizando
+%   o método da soma. Considera o mesmo pelo para todas as funções.
+%
+%   Parâmetros de entrada:
+%     - pop: array contendo a população inicial;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - pop: população inicial com valor agregado atualizado.
+
+no = max(L.COLF) - min(L.COLF) + 1; % número de funções objetivo
+pop(:,L.COLAG) = sum(pop(:,L.COLF),2) ./ no;
+
 end
 
 function pop = pareto(pop,L)
