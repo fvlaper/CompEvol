@@ -75,30 +75,35 @@ function pop = pareto(pop,L)
 %   Inspirado em XXX.
 %
 %   Parâmetros de entrada:
-%     - npop: número de indivíduos da população;
-%     - xmin: valor mínimo de uma variável;
-%     - xmax: valor máximo de uma variável;
+%     - pop: array contendo a população inicial;
 %     - L: layout de um indivíduo.
 %
 %   Parâmetros de saída:
-%     - pop: array contendo a população inicial.
+%     - pop: população inicial com fronteira de Pareto atualizada.
 
 npop = size(pop,1); % número de indivíduos
 no = max(L.COLF) - min(L.COLF) + 1; % número de funções objetivo
 f = 1;  % f-ésima fronteira de Pareto
-front(f).ids = []; % índices dos indivíduos na i-ésima fronteira
-dominacao = []; % informações de dominação de cada indivíduo.
+
+% Fronteira: vetor com uma estrutura por fronteira de Pareto:
+%   n: número de indivíduos na fronteira;
+%   ids: índices dos indivíduos na fronteira.
+indfront = struct('n',0, 'ids',zeros(1,npop));
+front = repmat(indfront,1,npop);
+
+% Dominação: vetor com uma estrutura por indivíduo i:
+%   n: número de indivíduos que dominam i;
+%   nd: número de indivíduos dominados por i;
+%   d: índices dos indivíduos dominados por i.
+elemento = struct('n',0, 'nd',0, 'd',zeros(1,npop));
+dominacao = repmat(elemento,1,npop);
 
 % Compara cada indivíduo com todos os demais para determinar
 % a dominação.
 for i = 1:npop
-    dominacao(i).n = 0;  % número de indivíduos que dominam i.
-    dominacao(i).d = []; % índices dos indivíduos dominados por i.
-    
     for j = 1:npop
         if i ~= j
             % Compara indivíduos i e j
-            %display(['Comparando ', num2str(i), ' e ' num2str(j)]);
             difs = pop(i,L.COLF) - pop(j,L.COLF);
             menores = sum(difs <  0);
             iguais  = sum(difs == 0);
@@ -107,17 +112,51 @@ for i = 1:npop
             
             if maiores == 0 && iguais ~= no
                 % i domina j: nenhum maior, pelo menos um menor
-                dominacao(i).d = [dominacao(i).d j];
+                dominacao(i).nd = dominacao(i).nd + 1;
+                dominacao(i).d(dominacao(i).nd) = j;
             elseif menores == 0 && iguais ~= no
                 % j domina i: nenhum menor, pelo menos um diferente
                 dominacao(i).n = dominacao(i).n + 1;
             end
         end        
     end
+    
+    % Trata os indivíduos na primeira fronteira.
+    if dominacao(i).n == 0
+        front(f).n = front(f).n + 1;
+        front(f).ids(front(f).n) = i;
+        pop(i,L.COLPT) = 1;
+    end
 end
 
-for i = 1:npop
-    display([num2str(i), ': n = ', dominacao.n, ' d = ', dominacao.d]);
+%for i = 1:npop
+%    display([num2str(i), ': n = ', num2str(dominacao(i).n), ' nd = ', num2str(dominacao(i).nd)]);
+%    display(dominacao(i).d);
+%end
+
+% Tratamento das demais fronteiras
+while front(f).n ~= 0
+    % Percorre os elementos da f-ésima fronteira, removendo-os
+    % e fazendo os cálculos para a (f+1)-ésima fronteira.
+    for i = 1:front(f).n
+        individuo = front(f).ids(i);
+%        display(['Tratando indivíduo ', num2str(individuo)]);
+        % Trata os indivíduos dominados pelo indivíduo atual.
+        for j = 1:dominacao(individuo).nd
+            dominado = dominacao(individuo).d(j);
+%            display([' Domina ', num2str(dominado)]);
+            dominacao(dominado).n = dominacao(dominado).n - 1;
+            if dominacao(dominado).n == 0
+                front(f+1).n = front(f+1).n + 1;
+                front(f+1).ids(front(f+1).n) = dominado;
+                pop(dominado,L.COLPT) = f+1;
+            end
+        end
+    end
+    
+%    display(['fronteira ', num2str(f), ': ', num2str(front(f).n)]);
+%    display(front(f).ids);
+    f = f + 1;
 end
 
 end
@@ -130,7 +169,7 @@ function pop = dtlz1 (pop,nvar,no,L)
 %   Parâmetros de entrada:
 %     - pop: população;
 %     - nvar: número de variáveis;
-%     - no: núemro de funções objetivo;
+%     - no: número de funções objetivo;
 %     - L: layout de um indivíduo.
 %
 %   Parâmetros de saída:
