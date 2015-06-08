@@ -16,17 +16,23 @@ function [ ps ] = moea_3w( ncal, nvar, no )
 %   - Variáveis de decisão: nvar colunas.
 %   - Funções objetivo: no colunas.
 %   - Valor agregado: uma coluna.
-%   - Fronteira de Pareto: uma coluna.
+%   - Fronteira de Pareto: uma coluna;
+%   - Hyperbox: uma coluna;
+%   - Fator de aglomeração (squeeze factor): uma coluna.
 xi = 1; xf = xi+nvar-1;
 fi = xf+1; ff = fi+no-1;
 ag = ff+1;
 pt = ag+1;
-nc = pt;
+hy = pt+1;
+sq = hy+1;
+nc = sq;
 
 L.COLX  = xi:xf;
 L.COLF  = fi:ff;
 L.COLAG = ag;
 L.COLPT = pt;
+L.COLHY = hy;
+L.COLSQ = sq;
 L.NC = nc;
 
 % Dados iniciais da população: faixa das variáveis e 
@@ -38,11 +44,16 @@ npop = 10;
 pop = popinit(npop,xmin,xmax,L);
 
 % Teste
-pop = dtlz1(pop,nvar,no,L);
-%pop = dtlz2(pop,nvar,no,L);
+%pop = dtlz1(pop,nvar,no,L);
+pop = dtlz2(pop,nvar,no,L);
 
 pop = agregacao(pop,L);
 pop = pareto(pop,L);
+pop = hyperbox(pop,5,L);
+
+for i = 1:npop
+    display(decodifica(pop(i,L.COLHY),no,5));
+end
 
 % Retorno do resultado
 ps = pop;
@@ -175,6 +186,108 @@ while front(f).n ~= 0
 %    display(['fronteira ', num2str(f), ': ', num2str(front(f).n)]);
 %    display(front(f).ids);
     f = f + 1;
+end
+
+end
+
+function pop = hyperbox(pop,resolucao,L)
+%HYPERBOX Calcula o hyperbox de cada indivíduo.
+%   Para cada indivíduo da população, calcula o hyperbox ao qual
+%   pertence e o fator de aglomeração.
+%
+%   Parâmetros de entrada:
+%     - pop: array contendo a população inicial;
+%     - resolucao: tamanho do grid (o mesmo para todas as dimensões).
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - pop: população inicial hyperbox e aglomeração atualizados.
+
+% Encontra os valores máximos e mínimos das funções objetivo.
+zmax = max(pop(:,L.COLF),[],1);
+zmin = min(pop(:,L.COLF),[],1);
+
+% Encontra os limites superiores e inferiores e o tamanho da caixa
+delta = (zmax - zmin) / (2 * resolucao);
+inf = zmin - delta;
+sup = zmax + delta;
+boxsize = (sup - inf) / resolucao;
+
+% Calcula o hyperbox (para cada dimensão) e o fator de aglomeracao
+npop = size(pop,1); % número de indivíduos
+no = max(L.COLF) - min(L.COLF) + 1; % número de funções objetivo
+hbox = zeros(npop,no);
+indbox = struct('hbox',ones(1,no) * -1, 'n', 0, 'ids',zeros(1,npop));
+pbox = repmat(indbox,1,npop);
+p = 0;
+for i = 1:npop
+    hbox(i,:) = floor((pop(i,L.COLF) - inf) ./ boxsize);
+    pop(i,L.COLHY) = codifica(hbox(i,:),resolucao);
+    encontrado = 0;
+    for k = 1:p
+        if isequal(hbox(i,:), pbox(k).hbox)
+            encontrado = 1;
+            pbox(k).n = pbox(k).n + 1;
+            pbox(k).ids(pbox(k).n) = i;
+            break;
+        end
+    end
+    
+    if ~encontrado
+        p = p + 1;
+        pbox(p).hbox = hbox(i,:);
+        pbox(p).n = 1;
+        pbox(p).ids(pbox(p).n) = i;
+    end
+end
+display(hbox);
+
+% Registra o valor de aglomeração para cada indivíduo.
+for k = 1:p
+%    display(pbox(k));
+    for j = 1:pbox(k).n
+        pop(pbox(k).ids(j),L.COLSQ) = pbox(k).n;
+    end
+end
+
+end
+
+function box = codifica(hbox,resolucao)
+%CODIFICA Codifica um hyperbox como um valor numérico.
+%   Codifica as coordenadas do hyperbox em um valor numérico único.
+%
+%   Parâmetros de entrada:
+%     - hbox: hyperbox a codificar;
+%     - resolucao: resolucao utilizada para o cálculo do hyperbox.
+%
+%   Parâmetros de saída:
+%     - box: hyperbox codificado como inteiro.
+
+no = size(hbox,2);
+box = 0;
+for i = 1:no
+    box = (box * resolucao) + hbox(i);
+end
+
+end
+
+function hbox = decodifica(box,no,resolucao)
+%DECODIFICA Decodifica um hyperbox como um vetor de dimensões.
+%   Obtém o vetor de dimensões de um hyperbox a aprtir do valor
+%   codificado.
+%
+%   Parâmetros de entrada:
+%     - box: hyperbox a decodificar;
+%     - no: número de funções objetivo;
+%     - resolucao: resolucao utilizada para o cálculo do hyperbox.
+%
+%   Parâmetros de saída:
+%     - box: hyperbox decodificado.
+
+hbox = zeros(1,no);
+for i = 0:no-1
+    hbox(no-i) = rem(box,resolucao);
+    box = fix(box/resolucao);
 end
 
 end
