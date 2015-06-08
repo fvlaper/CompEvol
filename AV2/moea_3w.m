@@ -47,13 +47,19 @@ pop = popinit(npop,xmin,xmax,L);
 %pop = dtlz1(pop,nvar,no,L);
 pop = dtlz2(pop,nvar,no,L);
 
+resolucao = 5;
+
 pop = agregacao(pop,L);
 pop = pareto(pop,L);
-pop = hyperbox(pop,5,L);
+pop = hyperbox(pop,resolucao,L);
 
-for i = 1:npop
-    display(decodifica(pop(i,L.COLHY),no,5));
-end
+arqnd = naodominado(pop,L);
+arqsq = naoaglomerado(pop,L);
+display(arqsq);
+
+%for i = 1:npop
+%    display(decodifica(pop(i,L.COLHY),no,resolucao));
+%end
 
 % Retorno do resultado
 ps = pop;
@@ -240,7 +246,7 @@ for i = 1:npop
         pbox(p).ids(pbox(p).n) = i;
     end
 end
-display(hbox);
+%display(hbox);
 
 % Registra o valor de aglomeração para cada indivíduo.
 for k = 1:p
@@ -289,6 +295,41 @@ for i = 0:no-1
     hbox(no-i) = rem(box,resolucao);
     box = fix(box/resolucao);
 end
+
+end
+
+function arqnd = naodominado(pop,L)
+%NAODOMINADO Encontra os elementos não dominados de uma populacao.
+%   Encontra os elementos não dominados de uma população e retorna-os
+%   em uma subpopulação separada.
+%
+%   Parâmetros de entrada:
+%     - pop: array contendo a população inicial;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - arqnd: subpopulação de elementos não dominados.
+
+idx = (pop(:,L.COLPT) == 1);
+arqnd = pop(idx,:);
+
+end
+
+function arqsq = naoaglomerado(pop,L)
+%NAOAGLOMERADO Encontra os elementos não aglomerados de uma populacao.
+%   Encontra os elementos não aglomerados de uma população (ou seja,
+%   aqueles sozinhos em um hyperbox) e retorna-os
+%   em uma subpopulação separada.
+%
+%   Parâmetros de entrada:
+%     - pop: array contendo a população inicial;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - arqnd: subpopulação de elementos não aglomerados.
+
+idx = (pop(:,L.COLSQ) == 1);
+arqsq = pop(idx,:);
 
 end
 
