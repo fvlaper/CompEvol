@@ -38,31 +38,65 @@ L.NC = nc;
 % Dados iniciais da população: faixa das variáveis e 
 % quantidade de indivíduos.
 xmin = 0; xmax = 1;
-npop = 10;
+npop = 10; % XXX Cálculo?
 
 % Estabelecimento da polulação inicial.
 pop = popinit(npop,xmin,xmax,L);
 
-% Teste
-%pop = dtlz1(pop,nvar,no,L);
-pop = dtlz2(pop,nvar,no,L);
+% Avaliação dos elementos da população inicial.
+%pop = dtlz1(pop,nvar,no,L);  % cálculo das funções objetivo
+pop = dtlz2(pop,nvar,no,L);  % cálculo das funções objetivo
+ncal = ncal - npop;
 
-resolucao = 5;
+pop = agregacao(pop,L); % cálculo do valor agregado
+pop = pareto(pop,L);    % cálculo da fronteira de pareto
+resolucao = 5; % XXX Parâmetro?
+[pop, pinf, psup] = hyperbox(pop,resolucao,L); % cálculo do hyperbox
 
-pop = agregacao(pop,L);
-pop = pareto(pop,L);
-pop = hyperbox(pop,resolucao,L);
-
+% Cópia dos elementos não dominados da população para o arquivo arqnd
 arqnd = naodominado(pop,L);
+ndinf = pinf;
+ndsup = psup;
+
+% Cópia dos elementos não agregados da população para o arquivo arqsq
 arqsq = naoaglomerado(pop,L);
-display(arqsq);
+sqinf = pinf;
+sqsup = psup;
+
+display(pop);
+
+% Probabilidades iniciais de cruzamento e mutação
+pc = 0.6;
+pm = 0.05;
+
+% Laço principal
+while ncal >= 3
+    
+    % Seleciona os pais para os cruzamentos (um de cada populaçao/arquivo)
+    p1 = seleciona(pop,@compara,L);
+    p2 = seleciona(arqnd,@compara,L);
+    p3 = seleciona(arqsq,@compdist,L);
+    display(p1);
+    display(p2);
+    display(p3);
+    
+    % Calcula as probabilidades de cruzamento e mutação
+    [pc,pm] = calcProbs(pop,pc,pm,L);
+
+    % Realiza os cruzamentos para gerar três filhos.
+    c1 = cruzamento(p1,p2,pc,L);
+    display(c1);
+    
+    % Foram avaliadas as funções objetivo de três indivíduos
+    ncal = ncal - 3;
+end
 
 %for i = 1:npop
 %    display(decodifica(pop(i,L.COLHY),no,resolucao));
 %end
 
-% Retorno do resultado
-ps = pop;
+% Retorno do resultado (elementos na primeira fronteira de Pareto)
+ps = arqnd;
 end
 
 function [pop] = popinit (npop, xmin, xmax, L)
@@ -196,10 +230,11 @@ end
 
 end
 
-function pop = hyperbox(pop,resolucao,L)
+function [pop, inf, sup] = hyperbox(pop,resolucao,L)
 %HYPERBOX Calcula o hyperbox de cada indivíduo.
 %   Para cada indivíduo da população, calcula o hyperbox ao qual
-%   pertence e o fator de aglomeração.
+%   pertence e o fator de aglomeração. Retorna também os limites
+%   inferior e superior do grid para cada dimensão.
 %
 %   Parâmetros de entrada:
 %     - pop: array contendo a população inicial;
@@ -207,7 +242,9 @@ function pop = hyperbox(pop,resolucao,L)
 %     - L: layout de um indivíduo.
 %
 %   Parâmetros de saída:
-%     - pop: população inicial hyperbox e aglomeração atualizados.
+%     - pop: população inicial hyperbox e aglomeração atualizados;
+%     - inf: limites inferiores do grid para cada dimensão;
+%     - sup: limites superiores do grid para cada dimensão.
 
 % Encontra os valores máximos e mínimos das funções objetivo.
 zmax = max(pop(:,L.COLF),[],1);
@@ -254,6 +291,120 @@ for k = 1:p
     for j = 1:pbox(k).n
         pop(pbox(k).ids(j),L.COLSQ) = pbox(k).n;
     end
+end
+
+end
+
+function p = seleciona(pop,comp,L)
+%SELECIONA Seleciona um indivíduo da população.
+%   Seleciona um indivíduo para participar dos cruzamentos.
+%   Utiliza torneio binário.
+%
+%   Parâmetros de entrada:
+%     - pop: população;
+%     - comp: handle da função de comparação;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - p: indivíduo selecionado.
+
+npop = size(pop,1); % número de indivíduos
+
+% Seleciona dois pais para o torneio
+p1 = randi(npop);
+p2 = randi(npop);
+while p1 == p2
+    p2 = randi(npop);
+end
+
+% Compara os dois pais
+[melhor, pior] = comp(p1, p2, pop, L);
+
+% Torneio
+prob = 0.75;
+if rand <= prob
+    p = pop(melhor,:);
+else
+    p = pop(pior,:);
+end
+
+end
+
+function [melhor, pior] = compara(i1, i2, pop, L)
+%COMPARA Compara dois indivíduos e retorna-os ordenados.
+%   Utiliza critérios normais de comparação:
+%   pareto > fator de agregação > valor agregado.
+%
+%   Parâmetros de entrada:
+%     - i1: índice do indivíduo 1;
+%     - i2: índice do indivíduo 2;
+%     - pop: população;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - melhor: índice do melhor indivíduo;
+%     - pior: índice do pior indivíduo.
+
+ind1 = pop(i1,:);
+ind2 = pop(i2,:);
+
+if ind1(L.COLPT) < ind2(L.COLPT)
+    melhor = i1;
+    pior = i2;
+elseif ind1(L.COLPT) > ind2(L.COLPT)
+    melhor = i2;
+    pior = i1;
+elseif ind1(L.COLSQ) < ind2(L.COLSQ)
+    melhor = i1;
+    pior = i2;
+elseif ind1(L.COLSQ) > ind2(L.COLSQ)
+    melhor = i2;
+    pior = i1;
+elseif ind1(L.COLAG) < ind2(L.COLAG)
+    melhor = i1;
+    pior = i2;
+else
+    melhor = i2;
+    pior = i1;
+end
+
+end
+
+function [melhor, pior] = compdist(i1, i2, pop, L)
+%COMPDIST Compara dois indivíduos e retorna-os ordenados.
+%   Utiliza critério alternativo (prioriza distribuição):
+%   fator de agregação > pareto > valor agregado.
+%
+%   Parâmetros de entrada:
+%     - i1: índice do indivíduo 1;
+%     - i2: índice do indivúduo 2;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - melhor: melhor indivíduo;
+%     - pior: pior indivíduo.
+
+ind1 = pop(i1,:);
+ind2 = pop(i2,:);
+
+if ind1(L.COLSQ) < ind2(L.COLSQ)
+    melhor = i1;
+    pior = i2;
+elseif ind1(L.COLSQ) > ind2(L.COLSQ)
+    melhor = i2;
+    pior = i1;
+elseif ind1(L.COLPT) < ind2(L.COLPT)
+    melhor = i1;
+    pior = i2;
+elseif ind1(L.COLPT) > ind2(L.COLPT)
+    melhor = i2;
+    pior = i1;
+elseif ind1(L.COLAG) < ind2(L.COLAG)
+    melhor = i1;
+    pior = i2;
+else
+    melhor = i2;
+    pior = i1;
 end
 
 end
@@ -330,6 +481,117 @@ function arqsq = naoaglomerado(pop,L)
 
 idx = (pop(:,L.COLSQ) == 1);
 arqsq = pop(idx,:);
+
+end
+
+function f = cruzamento(ind1,ind2,pc,L)
+%CRUZAMENTO Realiza o cruzamento entre dois indivíduos.
+%   Realiza o cruzamento entre dois indivíduos e retorna o filho
+%   resultante. Observação: o algoritmo gera dois filhos, mas esses
+%   são comparados e apenas o melhor é retornado.
+%
+%   Parâmetros de entrada:
+%     - ind1: primeiro indivíduo;
+%     - ind2: segundo indivíduo;
+%     - pc: probabilidade de cruzamento;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - f: filho gerado pelo cruzamento.
+
+% Determina o melhor e o pior pai.
+pais = [ind1; ind2];
+[m,p] = compara(1,2,pais,L);
+mp = pais(m,:);
+pp = pais(p,:);
+
+% Verifica se o cruzamento deve ser realizado;
+% caso contrário, apenas copia o melhor pai.
+if rand > pc
+    f = mp;
+else
+    f1 = zeros(1,L.NC);
+    f2 = zeros(1,L.NC);
+    
+    % Determina os coeficientes
+    nvar = max(L.COLX) - min(L.COLX) + 1;
+    kcross = randi(nvar);
+    apol = 0.5 * rand + 0.5;
+    a = 1.2 * rand - 0.1;
+    dir = randi(2) - 1;
+    
+    % Realiza o cruzamento
+    if dir == 0
+        f1(1:kcross) = apol * mp(1:kcross) + (1-apol) * pp(1:kcross);
+        f1((kcross+1):nvar) = mp((kcross+1):nvar);
+        f2(1:kcross) = (1-a) * mp(1:kcross) + a * pp(1:kcross);
+        f2((kcross+1):nvar) = pp((kcross+1):nvar);
+    else
+        f1(1:(kcross-1)) = mp(1:(kcross-1));
+        f1(kcross:nvar) = apol*mp(kcross:nvar) + (1-apol)*pp(kcross:nvar);
+        f2(1:(kcross-1)) = pp(1:(kcross-1));
+        f2(kcross:nvar) = (1-a) * mp(kcross:nvar) + a * pp(kcross:nvar);
+    end
+    display(f1);
+    display(f2);
+    
+    f = pp;
+end
+
+end
+
+function [pc, pm] = calcProbs(pop, pc, pm, L)
+%CALCPROBS Calcula as probabilidades de cruzamento e mutação.
+%   Calcula as probabilidades de cruzamento e mutação da presente geração.
+%   Essas probabilidades são influenciadas pelo mdg.
+%
+%   Parâmetros de entrada:
+%     - pop: array com os indivíduos da população;
+%     - pc: probabilidade de cruzamento atual;
+%     - pm: probabilidade de mutação atual;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - pc: nova probabilidade de cruzamento;
+%     - pm: nova probabilidade de mutação.
+
+
+vinf = 0.2;
+vmax = 0.7;
+kc = 1.2;
+km = 1.2;
+
+mdg = calcMdg(pop,L);
+
+if mdg < vinf
+  pc = pc / kc;
+  pm = pm * km;
+elseif mdg > vmax
+  pc = pc * kc;
+  pm = pm / km;
+end
+
+end
+
+function [mdg] = calcMdg(pop,L)
+%CALCMDG Calcula a medida da diversidade genética.
+%   A medida da diversidade genética da população influencia as
+%   probabilidades de cruzamento e mutação. O cálculo da medida
+%   baseia-se no valor agregado das funções objetivo.
+%
+%   Parâmetros de entrada:
+%       - pop: array com os indivíduos da população;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%       - mdg: medida de diversidade genética da população.
+
+npop = size(pop,1);
+fit = pop(:,L.COLAG);
+fmed = sum(fit) / npop;
+fmax = max(fit);
+
+mdg = (fmax - fmed) / fmax;
 
 end
 

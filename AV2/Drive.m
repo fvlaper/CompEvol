@@ -1,4 +1,4 @@
-ncal = 100;
+ncal = 13;
 nvar = 5;
 no = 3;
 
