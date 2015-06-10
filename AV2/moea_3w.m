@@ -44,8 +44,9 @@ npop = 10; % XXX Cálculo?
 pop = popinit(npop,xmin,xmax,L);
 
 % Avaliação dos elementos da população inicial.
-%pop = dtlz1(pop,nvar,no,L);  % cálculo das funções objetivo
-pop = dtlz2(pop,nvar,no,L);  % cálculo das funções objetivo
+%fos = @dtlz1; % XXX Parâmetro?
+fos = @dtlz2;
+pop = fos(pop,nvar,no,L);
 ncal = ncal - npop;
 
 pop = agregacao(pop,L); % cálculo do valor agregado
@@ -76,16 +77,36 @@ while ncal >= 3
     p1 = seleciona(pop,@compara,L);
     p2 = seleciona(arqnd,@compara,L);
     p3 = seleciona(arqsq,@compdist,L);
-    display(p1);
-    display(p2);
-    display(p3);
     
     % Calcula as probabilidades de cruzamento e mutação
     [pc,pm] = calcProbs(pop,pc,pm,L);
 
     % Realiza os cruzamentos para gerar três filhos.
     c1 = cruzamento(p1,p2,pc,L);
-    display(c1);
+    c2 = cruzamento(p1,p3,pc,L);
+    c3 = cruzamento(p2,p3,pc,L);
+    filhos = [c1;c2;c3];
+    
+    % Tratamentos dos filhos
+    for i = 1:size(filhos,1)
+        c = filhos(i,:);
+        
+        % Realiza mutações
+        gamma = perturbacao(c,pm,xmin,xmax,L);
+        c(L.COLX) = c(L.COLX) + gamma;
+
+        % Garante que as condições de contorno sejam respeitadas
+        c(:,L.COLX) = min(xmax, max(xmin,c(:,L.COLX)));
+        
+        % Calcula as funções objetivo e o valor agregado
+        c = fos(c,nvar,no,L);
+        c = agregacao(c,L);
+        
+        % Teste
+        display(c);
+        [pop,pinf,psup] = atualizapop(c,pop,pinf,psup,resolucao,L);
+        display(pop);
+    end
     
     % Foram avaliadas as funções objetivo de três indivíduos
     ncal = ncal - 3;
@@ -484,11 +505,127 @@ arqsq = pop(idx,:);
 
 end
 
+function [pop,pinf,psup] = atualizapop(c,pop,pinf,psup,resolucao,L)
+%ATUALIZAPOP Atualiza a população com um indivíduo.
+%   Tenta inserir um indivíduo em uma população. Se o indivíduo
+%   não for descartado, refaz os cálculos das fronteiras de Pareto
+%   e do hyperbox.
+%
+%   Parâmetros de entrada:
+%     - c: indivíduo a inserir;
+%     - pop: população;
+%     - inf: limites inferiores do grid para cada dimensão;
+%     - sup: limites superiores do grid para cada dimensão;
+%     - resolucao: tamanho do grid.
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - pop: população atualizada.
+%     - inf: limites inferiores atualizados;
+%     - sup: limites superiores atualizados.
+
+% Calcula os indivíduos de pop dominados e que dominam c.
+dom = dominacao(c,pop,L);
+
+descartado = 0;
+
+if dom.n > 0
+    % c domina um grupo de indivíduos:
+    % substitui o pior deles por c.
+    inds = dom.idn(1:dom.n);
+    pr = pior(pop,inds,@compara,L);
+    pop(pr,:) = c;
+elseif dom.m > 0
+    % c é dominado e descartado.
+    descartado = 1;
+else
+    % c não domina nem é dominado:
+    % substitui o pior indivíduo da população.
+    inds = 1:size(pop,1);
+    pr = pior(pop,inds,@compara,L);
+    pop(pr,:) = c;
+end
+
+if ~descartado
+    % c foi inserido na população: refaz os cálculos de dominação
+    % e distribuição.
+    pop = pareto(pop,L);
+    [pop, pinf, psup] = hyperbox(pop,resolucao,L); % cálculo do hyperbox
+end
+
+end
+
+function dom = dominacao(c,pop,L)
+%DOMINACAO Calcula elementos dominados por e que dominam um indivíduo.
+%   Encontra os indivíduos de uma população que dominam um determinado
+%   indivíduo e que são dominados por ele.
+%
+%   Parâmetros de entrada:
+%     - c: indivíduo a comparar;
+%     - pop: população;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - dom: estrutura de dominação, com os campos:
+%         n: número de indivíduos dominados por c;
+%         idn: vetor com índices dos indivíduos dominados por c;
+%         m: número de indivíduos que dominam c;
+%         idm: vetor com índices dos indivíduos que dominam c.
+
+no = max(L.COLF) - min(L.COLF) + 1;
+npop = size(pop,1);
+elemento = struct('n',0, 'idn',zeros(1,npop), 'm',0, 'idm',zeros(1,npop));
+dom = repmat(elemento,1,1);
+
+for i = 1:npop
+    % Compara com o i-ésimo indivíduo da população
+    difs = c(L.COLF) - pop(i,L.COLF);
+    menores = sum(difs < 0);
+    iguais = sum(difs == 0);
+    maiores = sum(difs > 0);
+    %display(['menor = ', num2str(menores), ' maior = ', num2str(maiores), ' igual = ', num2str(iguais)]);
+    
+    if maiores == 0 && iguais ~= no
+        % c domina i: nenhum maior, eplo menos um menor
+        dom.n = dom.n + 1;
+        dom.idn(dom.n) = i;
+    elseif menores == 0 && iguais ~= no
+        % i domina c: nenhum menor, pelo menos um diferente
+        dom.m = dom.m + 1;
+        dom.idm(dom.m) = i;
+    end
+end
+
+end
+
+function ind = pior(pop,inds,comp,L)
+%PIOR Encontra o pior indivíduo de uma (sub)população.
+%   Encontra o pior indivíduo dentre um conjunto de indivíduos
+%   (cujos índices são fornecidos) de uma população.
+%   Utiliza uma função fornecida para fazer as comparações.
+%
+%   Parâmetros de entrada:
+%     - pop: população;
+%     - inds: índices dos indivíduos a considerar;
+%     - comp: função de comparação.
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - ind: índice do pior indivíduo.
+
+n = size(inds,2);
+
+ind = inds(1);
+for k = 2:n
+    [~,ind] = comp(ind,inds(k),pop,L);
+end
+
+end
+
 function f = cruzamento(ind1,ind2,pc,L)
 %CRUZAMENTO Realiza o cruzamento entre dois indivíduos.
 %   Realiza o cruzamento entre dois indivíduos e retorna o filho
-%   resultante. Observação: o algoritmo gera dois filhos, mas esses
-%   são comparados e apenas o melhor é retornado.
+%   resultante.
 %
 %   Parâmetros de entrada:
 %     - ind1: primeiro indivíduo;
@@ -511,31 +648,67 @@ if rand > pc
     f = mp;
 else
     f1 = zeros(1,L.NC);
-    f2 = zeros(1,L.NC);
+    %f2 = zeros(1,L.NC);
     
     % Determina os coeficientes
     nvar = max(L.COLX) - min(L.COLX) + 1;
     kcross = randi(nvar);
     apol = 0.5 * rand + 0.5;
-    a = 1.2 * rand - 0.1;
+    %a = 1.2 * rand - 0.1;
     dir = randi(2) - 1;
     
     % Realiza o cruzamento
     if dir == 0
         f1(1:kcross) = apol * mp(1:kcross) + (1-apol) * pp(1:kcross);
         f1((kcross+1):nvar) = mp((kcross+1):nvar);
-        f2(1:kcross) = (1-a) * mp(1:kcross) + a * pp(1:kcross);
-        f2((kcross+1):nvar) = pp((kcross+1):nvar);
+        %f2(1:kcross) = (1-a) * mp(1:kcross) + a * pp(1:kcross);
+        %f2((kcross+1):nvar) = pp((kcross+1):nvar);
     else
         f1(1:(kcross-1)) = mp(1:(kcross-1));
         f1(kcross:nvar) = apol*mp(kcross:nvar) + (1-apol)*pp(kcross:nvar);
-        f2(1:(kcross-1)) = pp(1:(kcross-1));
-        f2(kcross:nvar) = (1-a) * mp(kcross:nvar) + a * pp(kcross:nvar);
+        %f2(1:(kcross-1)) = pp(1:(kcross-1));
+        %f2(kcross:nvar) = (1-a) * mp(kcross:nvar) + a * pp(kcross:nvar);
     end
-    display(f1);
-    display(f2);
     
-    f = pp;
+    f = f1;
+end
+
+end
+
+function gamma = perturbacao(c,pm,xmin,xmax,L)
+%PERTURBACAO Calcula o vetor de perturbações.
+%   O vetor de perturbações corresponde aos valores a serem
+%   adicionados às variáveis do indivíduo para a implementação
+%   da mutação.
+%
+%   Parâmetros de entrada:
+%     - c: indivíduo a perturbar;
+%     - pm: probabilidade de mutação;
+%     - xmin: valor mínimo de uma variável;
+%     - xmax: valor máximo de uma variável;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - gamma: vetor de perturbações.
+
+% Inicializa o vetor de perturbações.
+nvar = max(L.COLX) - min(L.COLX) + 1;
+gamma = zeros(1,nvar);
+
+if rand < pm
+    kmut = randi(nvar);
+    range = xmax - xmin;
+    dir = randi(2) - 1;
+    if dir == 0
+        faixa = 1:kmut;
+    else
+        faixa = kmut:nvar;
+    end
+    
+    for i = faixa
+        beta = (2 * rand - 1);
+        gamma(i) = 0.05 * beta * range;
+    end
 end
 
 end
