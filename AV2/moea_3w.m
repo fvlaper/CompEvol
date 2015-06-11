@@ -64,7 +64,7 @@ arqsq = naoaglomerado(pop,L);
 sqinf = pinf;
 sqsup = psup;
 
-display(pop);
+display(arqnd);
 
 % Probabilidades iniciais de cruzamento e mutação
 pc = 0.6;
@@ -88,7 +88,8 @@ while ncal >= 3
     filhos = [c1;c2;c3];
     
     % Tratamentos dos filhos
-    for i = 1:size(filhos,1)
+%    for i = 1:size(filhos,1)
+    for i = 1:1
         c = filhos(i,:);
         
         % Realiza mutações
@@ -103,9 +104,15 @@ while ncal >= 3
         c = agregacao(c,L);
         
         % Teste
+        %inds = [1,3,5,8,9];
+        %pop = remove(pop,inds,size(inds,2),L);
+        %pop(inds,:) = [];
+        
+        %[pop,pinf,psup] = atualizapop(c,pop,pinf,psup,resolucao,L);
         display(c);
-        [pop,pinf,psup] = atualizapop(c,pop,pinf,psup,resolucao,L);
-        display(pop);
+        [arqnd,ndinf,ndsup] = atualizadom(c,arqnd,ndinf,ndsup,...
+                                          npop,resolucao,L);
+        display(arqnd);
     end
     
     % Foram avaliadas as funções objetivo de três indivíduos
@@ -555,6 +562,55 @@ end
 
 end
 
+function [arqnd,ndinf,ndsup] = atualizadom(c,arqnd,ndinf,ndsup, ...
+                                           max,resolucao,L)
+%ATUALIZAPOP Atualiza o arquivo de dominação com um indivíduo.
+%   Tenta inserir um indivíduo no arquivo de dominação população.
+%   Se o indivíduo não for descartado, refaz os cálculos 
+%   das fronteiras de Pareto e do hyperbox.
+%
+%   Parâmetros de entrada:
+%     - c: indivíduo a inserir;
+%     - arqnd: população (arquivo de dominação);
+%     - ndinf: limites inferiores do grid para cada dimensão;
+%     - ndsup: limites superiores do grid para cada dimensão;
+%     - max: número máximo de elementos em no arquivo;
+%     - resolucao: tamanho do grid.
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - arqnd: população atualizada.
+%     - ndinf: limites inferiores atualizados;
+%     - ndsup: limites superiores atualizados.
+
+% Calcula os indivíduos de pop dominados e que dominam c.
+dom = dominacao(c,arqnd,L);
+
+descartado = 0;
+
+if dom.m > 0
+    % c é dominado por algum indivíduo do arquivo e é descartado
+    display('c dominado');
+    descartado = 1;
+elseif dom.n > 0
+    % c domina indivíduos do arquivo: remove os dominados e insere c
+    display('c domina');
+    display(dom.idn);
+    arqnd = remove(arqnd,dom.idn,dom.n,L);
+    arqnd = [arqnd; c];
+elseif size(arqnd,1) < max
+    % c não domina nem é dominado e há espaço no arquivo: insere c
+    display('não domina nem é dominado; há espaço');
+    display(dom.m);
+else
+    % c não domina nem é dominado; não há espaço no arquivo
+    display('não domina nem é dominado; não há espaço');
+    display(dom.m);
+    display(size(arqnd,1));
+end
+    
+end
+
 function dom = dominacao(c,pop,L)
 %DOMINACAO Calcula elementos dominados por e que dominam um indivíduo.
 %   Encontra os indivíduos de uma população que dominam um determinado
@@ -619,6 +675,48 @@ ind = inds(1);
 for k = 2:n
     [~,ind] = comp(ind,inds(k),pop,L);
 end
+
+end
+
+function pop = remove(pop,inds,n,L)
+%REMOVE remove indivíduos de uma população.
+%   Remove de uma população os indivíduos cujos índices são fornecidos.
+%   Observação: pressupõe que os índices estão em ordem crescente.
+%
+%   Parâmetros de entrada:
+%     - pop: população;
+%     - inds: índices dos indivíduos a remover;
+%     - n: quantidade de elementos a remover;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - pop: população atualizada.
+
+% Aloca espaço para a nova população
+npop = size(pop,1);
+rpop = zeros(npop-n,L.NC);
+
+% Efetua as remoções
+inicio = 1;
+c = 1;
+for i = 1:n
+    % Copia elementos anteriores ao índice
+    for k = inicio:inds(i)-1
+        rpop(c,:) = pop(k,:);
+        c = c+1;
+    end
+    
+    % Novo início é após o elemento removido
+    inicio = inds(i) + 1;
+end
+
+% Copia os elementos restantes
+for k = inicio : npop
+    rpop(c,:) = pop(k,:);
+    c = c + 1;
+end
+
+pop = rpop;
 
 end
 
