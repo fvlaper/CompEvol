@@ -86,8 +86,7 @@ while ncal >= 3
     filhos = [c1;c2;c3];
     
     % Tratamentos dos filhos
-%    for i = 1:size(filhos,1)
-    for i = 1:2
+    for i = 1:size(filhos,1)
         
         c = filhos(i,:);
         
@@ -111,6 +110,10 @@ while ncal >= 3
         [arqnd,ndinf,ndsup] = atualizadom(c,arqnd,ndinf,ndsup,...
                                           npop,resolucao,L);
         display(arqnd);
+        display(arqsq);
+        [arqsq,sqinf,sqsup] = atualizadis(c,arqsq,sqinf,sqsup,...
+                                          npop,resolucao,L);
+        display(arqsq);
                                       
     end
     
@@ -685,6 +688,112 @@ end
     
 end
 
+function [arqsq,sqinf,sqsup] = atualizadis(c,arqsq,sqinf,sqsup, ...
+                                           max,resolucao,L)
+%ATUALIZAPOP Atualiza o arquivo de dominação com um indivíduo.
+%   Tenta inserir um indivíduo no arquivo de distribuição.
+%   Se o indivíduo não for descartado, refaz os cálculos 
+%   das fronteiras de Pareto e do hyperbox.
+%
+%   Parâmetros de entrada:
+%     - c: indivíduo a inserir;
+%     - arqsq: população (arquivo de distribuição);
+%     - sqinf: limites inferiores do grid para cada dimensão;
+%     - sqsup: limites superiores do grid para cada dimensão;
+%     - max: número máximo de elementos no arquivo;
+%     - resolucao: tamanho do grid.
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - arqsq: população atualizada.
+%     - sqinf: limites inferiores atualizados;
+%     - sqsup: limites superiores atualizados.
+
+display('Introdução no arquivo de distribuição');
+
+% Verifica se indivíduo não existe na população
+idx = indice(c,arqsq,L);
+if idx > 0
+    display('c já existe: descartado');
+    return;
+end
+
+descartado = 0;
+
+if extrapola(c,sqinf,sqsup,L)
+    % c estende grid do arquivo: deve ser inserido.
+    display('c extrapola o grid');
+    if size(arqsq,1) < max
+        % Arquivo tem espaço: insere c.
+        arqsq = [arqsq; c];
+        display('arquivo tem espaço: inserido');
+    else
+        % Arquivo está cheio: substitui o pior.
+        pr = pior(arqsq,1:size(arqsq,1),@compdist,L);
+        arqsq(pr,:) = c;
+        display(['arquivo cheio: substui ', num2str(pr)]);
+    end
+else
+    % C não estende grid: verifica de deve ser inserido
+    display('c não extrapola grid');
+    
+    % Calcula o hyperbox e o squeeze factor de c.
+    hy = indbox(c,sqinf,sqsup,resolucao,L);
+    hyinds = find(arqsq(:,L.COLHY) == hy);
+    sq = size(hyinds,1) + 1;
+    c(L.COLHY) = hy;
+    c(L.COLSQ) = sq;
+    
+    % Calcula a fronteira de pareto do indivíduo.
+    c(L.COLPT) = indpar(c,arqsq,L);
+    display(c);
+    
+    if sq == 1
+        % c em box individual: deve ser inserido
+        if size(arqsq,1) < max
+            % Arquivo tem espaço: insere c.
+            arqsq = [arqsq; c];
+            display('arquivo tem espaço: inserido');
+        else
+            % Arquivo está cheio: substitui o pior.
+            pr = pior(arqsq,1:size(arqsq,1),@compdist,L);
+            arqsq(pr,:) = c;
+            display(['arquivo cheio: substui ', num2str(pr)]);
+        end
+    else
+        % c em box ocupado
+        display('c em box ocupado');
+        % Obtém o outro indivíduo do box.
+        inbox = arqsq(hyinds,:);
+        inbox(L.COLSQ) = sq;
+        display(inbox);
+        % Compara com c
+        [m,~] = compdist(1,2,[c;inbox],L);
+        if m == 1
+            % c é melhor: substitui
+            idx = indice(inbox,arqsq,L);
+            display('substitui ');
+            display(idx);
+            arqsq(idx,:) = c;
+        else
+            % c é pior: descarta
+            display('não substitui (descartado)');
+            descartado = 1;
+        end
+    end
+end
+
+if ~descartado
+    display('c inserido (recalcula)');
+    % c foi inserido na população: refaz os cálculos de dominação
+    % e distribuição.
+    arqsq = pareto(arqsq,L);
+    [arqsq, sqinf, sqsup] = hyperbox(arqsq,resolucao,L);
+    arqsq = naoaglomerado(arqsq,L);
+end
+    
+end
+
 function m = indice(c,pop,L)
 %INDICE Verifica se um indivíduo está em uma população.
 %   Verifica se um indivíduo participa de uma população.
@@ -779,6 +888,38 @@ function ext = extrapola(c,inf,sup,L)
   
 end
 
+function pt = indpar(c,pop,L)
+%INDPAR Calcula a fronteira de Pareto de um indivíduo.
+%   Encontra a qual fronteira de Pareto um indivíduo pertence
+%   em relação a uma população.
+%
+%   Parâmetros de entrada:
+%     - c: indivíduo a verificar;
+%     - pop: população;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - pt: fronteira de Pareto do indivíduo.
+
+dom = dominacao(c,pop,L);
+
+if dom.m == 0
+    % Não dominado: primeira fronteira
+    pt = 1;
+else
+    % Dominado: verifica a última fronteira dos dominadores e soma 1.
+    pt = 0;
+    for i = 1:dom.m
+        front = pop(dom.idm(i),L.COLPT);
+        if front > pt
+            pt = front;
+        end
+    end
+    pt = pt + 1;
+end
+
+end
+
 function hb = indbox(c,inf,sup,resolucao,L)
 %INDBOX Calcula o hyperbox de um indivíduo.
 %   Encontra o hyperbox ocupado por um indivíduo em uma determinada
@@ -792,7 +933,7 @@ function hb = indbox(c,inf,sup,resolucao,L)
 %     - L: layout de um indivíduo.
 %
 %   Parâmetros de saída:
-%     - ext: 0 (não viola) ou 1 (viola).
+%     - hb: hyperbox do indivíduo
   
   boxsize = (sup - inf) / resolucao;
   
