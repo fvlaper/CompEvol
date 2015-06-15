@@ -1,12 +1,14 @@
-function [ ps ] = moea_3w( ncal, nvar, no )
+function [ ps ] = moea_3w( ncal, npop, nvar, no, resolucao )
 %MOEA_3W Multi Objective Evolutionary Algorithm - 3 Way
 %   Esta função implementa um algoritmo para otimização de funções
 %   Multi-objetivo. XXX Explicar o algoritmo.
 %
 %   Parâmetros de entrada:
 %     - ncal: número máximo de cálculos das funções objetivo;
+%     - npop: tamanho da população;
 %     - nvar: número de variáveis;
-%     - no: número de funções objetivo.
+%     - no: número de funções objetivo;
+%     - resolucao: tamanho do grid.
 %
 %   Parâmetros de saída:
 %     - ps: conjunto de Pareto.
@@ -38,7 +40,7 @@ L.NC = nc;
 % Dados iniciais da população: faixa das variáveis e 
 % quantidade de indivíduos.
 xmin = 0; xmax = 1;
-npop = 10; % XXX Cálculo?
+%npop = 10; % XXX Cálculo?
 
 % Estabelecimento da polulação inicial.
 pop = popinit(npop,xmin,xmax,L);
@@ -51,7 +53,7 @@ ncal = ncal - npop;
 
 pop = agregacao(pop,L); % cálculo do valor agregado
 pop = pareto(pop,L);    % cálculo da fronteira de pareto
-resolucao = 5; % XXX Parâmetro?
+%resolucao = 5; % XXX Parâmetro?
 [pop, pinf, psup] = hyperbox(pop,resolucao,L); % cálculo do hyperbox
 
 % Cópia dos elementos não dominados da população para o arquivo arqnd
