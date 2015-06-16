@@ -1,4 +1,4 @@
-function [ ps ] = moea_3w( ncal, npop, nvar, no, resolucao )
+function [ ps ] = moea_3w( ncal, npop, nvar, no, resolucao, objfunc )
 %MOEA_3W Multi Objective Evolutionary Algorithm - 3 Way
 %   Esta função implementa um algoritmo para otimização de funções
 %   Multi-objetivo. XXX Explicar o algoritmo.
@@ -8,7 +8,8 @@ function [ ps ] = moea_3w( ncal, npop, nvar, no, resolucao )
 %     - npop: tamanho da população;
 %     - nvar: número de variáveis;
 %     - no: número de funções objetivo;
-%     - resolucao: tamanho do grid.
+%     - resolucao: tamanho do grid;
+%     - objfunc: handle da função objetivo
 %
 %   Parâmetros de saída:
 %     - ps: conjunto de Pareto.
@@ -45,10 +46,19 @@ xmin = 0; xmax = 1;
 % Estabelecimento da polulação inicial.
 pop = popinit(npop,xmin,xmax,L);
 
+% Teste
+%aux = objfunc(pop(1,L.COLX), no);
+%display(aux);
+%indivi = pop(1,:);
+%findivi = calcFos(indivi,objfunc,L);
+%display(findivi);
+%pop = calcFos(pop,objfunc,L);
+
 % Avaliação dos elementos da população inicial.
 %fos = @dtlz1; % XXX Parâmetro?
-fos = @dtlz2;
-pop = fos(pop,nvar,no,L);
+%fos = @dtlz2;
+%pop = fos(pop,nvar,no,L);
+pop = calcFos(pop,objfunc,L);
 ncal = ncal - npop;
 
 pop = agregacao(pop,L); % cálculo do valor agregado
@@ -69,6 +79,8 @@ sqsup = psup;
 % Probabilidades iniciais de cruzamento e mutação
 pc = 0.6;
 pm = 0.05;
+
+display(arqsq);
 
 % Laço principal
 while ncal >= 3
@@ -100,7 +112,7 @@ while ncal >= 3
         c(:,L.COLX) = min(xmax, max(xmin,c(:,L.COLX)));
         
         % Calcula as funções objetivo e o valor agregado
-        c = fos(c,nvar,no,L);
+        c = calcFos(c,objfunc,L);
         c = agregacao(c,L);
         
         % Tenta inserir c na população e nos arquivos
@@ -115,8 +127,7 @@ while ncal >= 3
         display(arqsq);
         [arqsq,sqinf,sqsup] = atualizadis(c,arqsq,sqinf,sqsup,...
                                           npop,resolucao,L);
-        display(arqsq);
-                                      
+        display(arqsq);                                      
     end
     
     % Foram avaliadas as funções objetivo de três indivíduos
@@ -1142,7 +1153,7 @@ function [mdg] = calcMdg(pop,L)
 %   baseia-se no valor agregado das funções objetivo.
 %
 %   Parâmetros de entrada:
-%       - pop: array com os indivíduos da população;
+%     - pop: array com os indivíduos da população;
 %     - L: layout de um indivíduo.
 %
 %   Parâmetros de saída:
@@ -1157,6 +1168,30 @@ mdg = (fmax - fmed) / fmax;
 
 end
 
+function pop = calcFos(pop,objFunc,L)
+%CALCFOS Calcula as funções objetivo de uma população.
+%   Utiliza a função fornecida como parâmetro para calcular
+%   os valores para cada indivíduo.
+%
+%   Parâmetros de entrada:
+%     - pop: array com os indivíduos da população;
+%     - objfunc: função objetivo a utilizar;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - pop: população atualizada.
+
+npop = size(pop,1);
+%nvar = max(L.COLX) - min(L.COLX) + 1;
+no = max(L.COLF) - min(L.COLF) + 1;
+
+for i = 1:npop
+    pop(i,L.COLF) = objFunc(pop(i,L.COLX),no);
+end
+
+end
+
+%{
 function pop = dtlz1 (pop,nvar,no,L)
 %DTLZ1 Função dtlz1.
 %   Calcula as funções objetivo DTLZ1 para todos os indivíduos
@@ -1198,6 +1233,7 @@ pop(:,ff) = 0.5 * ((1 - pop(:,xi)) .* (1+gx));
 
 end
 
+
 function pop = dtlz2 (pop,nvar,no,L)
 %DTLZ1 Função dtlz1.
 %   Calcula as funções objetivo DTLZ2 para todos os indivíduos
@@ -1237,3 +1273,5 @@ end
 pop(:,ff) = (1+gx) .* sin(0.5*pi*pop(:,xi));
 
 end
+
+%}
