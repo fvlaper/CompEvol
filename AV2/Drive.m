@@ -6,9 +6,9 @@ nvar = 7;
 no = 3;
 %nvar = 9;
 %no = 5;
-resolucao = 5;
+precisao = 0.5;
 
-ps = moea_3w(ncal,npop,nvar,no,resolucao,@dtlz1);
+ps = moea_3w(ncal,npop,nvar,no,precisao,@dtlz1);
 
 display(ps);
 %}
@@ -20,8 +20,8 @@ nvar = 12;
 no = 3;
 %nvar = 14;
 %no = 5;
-resolucao = 5;
+precisao = 0.5;
 
-ps = moea_3w(ncal,npop,nvar,no,resolucao,@dtlz2);
+ps = moea_3w(ncal,npop,nvar,no,precisao,@dtlz2);
 
 display(ps);
