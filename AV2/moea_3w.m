@@ -57,6 +57,12 @@ pop = agregacao(pop,L); % cálculo do valor agregado
 pop = pareto(pop,L);    % cálculo da fronteira de pareto
 %resolucao = 5; % XXX Parâmetro?
 %[pop, pinf, psup] = hyperbox(pop,resolucao,L); % cálculo do hyperbox
+
+% Teste
+precisao = 0.5;
+res = calcResolucao(pop,precisao,L);
+display(res);
+
 [pop, pinf, psup, pbox] = hyperbox2(pop,resolucao,L); % cálculo do hyperbox
 %for k = 1:npop
 %    display(pbox(k));
@@ -85,7 +91,8 @@ pm = 0.05;
 %display(arqsq);
 
 % Laço principal
-while ncal >= 3
+%while ncal >= 3
+while ncal < 0
     
     % Seleciona os pais para os cruzamentos (um de cada populaçao/arquivo)
     p1 = seleciona(pop,@compara,L);
@@ -989,7 +996,7 @@ end
 
 function [arqsq,sqinf,sqsup] = atualizadis(c,arqsq,sqinf,sqsup, ...
                                            max,resolucao,L)
-%ATUALIZAPOP Atualiza o arquivo de dominação com um indivíduo.
+%ATUALIZADIS Atualiza o arquivo de dominação com um indivíduo.
 %   Tenta inserir um indivíduo no arquivo de distribuição.
 %   Se o indivíduo não for descartado, refaz os cálculos 
 %   das fronteiras de Pareto e do hyperbox.
@@ -1096,7 +1103,7 @@ end
 
 function [arqsq,sqinf,sqsup,sqbox] = atualizadis2(c,arqsq,sqinf,sqsup,sqbox, ...
                                            max,resolucao,L)
-%ATUALIZAPOP Atualiza o arquivo de dominação com um indivíduo.
+%ATUALIZADIS Atualiza o arquivo de dominação com um indivíduo.
 %   Tenta inserir um indivíduo no arquivo de distribuição.
 %   Se o indivíduo não for descartado, refaz os cálculos 
 %   das fronteiras de Pareto e do hyperbox.
@@ -1385,6 +1392,30 @@ function hb = indbox2(c,inf,sup,boxes,resolucao,L)
   %hb = codifica(hbox,resolucao);
   hb = ind;
   
+end
+
+function res = calcResolucao(pop,precisao,L)
+%CALCRESOLUCAO Calcula a resolucao do grid de hyperboxes.
+%   Dada uma precisao, encontra a resolução do grid de
+%   hyperboxes para uma determinada população.
+%
+%   Parâmetros de entrada:
+%     - pop: população;
+%     - precisao: precisão desejada;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - res: vetor com a resolução para cada dimensão.
+
+% Encontra os valores máximos e mínimos das funções objetivo.
+zmax = max(pop(:,L.COLF),[],1);
+zmin = min(pop(:,L.COLF),[],1);
+
+res = floor((zmax - zmin) / precisao) + 1;
+
+display(zmax);
+display(zmin);
+
 end
 
 function ind = pior(pop,inds,comp,L)
