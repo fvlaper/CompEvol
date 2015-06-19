@@ -21,14 +21,18 @@ function [ ps ] = moea_3w( ncal, npop, nvar, no, precisao, objfunc )
 %   - Valor agregado: uma coluna.
 %   - Fronteira de Pareto: uma coluna;
 %   - Hyperbox: uma coluna;
-%   - Fator de aglomeração (squeeze factor): uma coluna.
+%   - Fator de aglomeração (squeeze factor): uma coluna;
+%   - Ponto de referência: uma coluna;
+%   - Fator de nicho: uma coluna.
 xi = 1; xf = xi+nvar-1;
 fi = xf+1; ff = fi+no-1;
 ag = ff+1;
 pt = ag+1;
 hy = pt+1;
 sq = hy+1;
-nc = sq;
+rf = sq+1;
+nh = rf+1;
+nc = nh;
 
 L.COLX  = xi:xf;
 L.COLF  = fi:ff;
@@ -36,6 +40,8 @@ L.COLAG = ag;
 L.COLPT = pt;
 L.COLHY = hy;
 L.COLSQ = sq;
+L.COLRF = rf;
+L.COLNH = nh;
 L.NC = nc;
 
 % Dados iniciais da população: faixa das variáveis e 
@@ -62,6 +68,10 @@ pop = pareto(pop,L);    % cálculo da fronteira de pareto
 %for k = 1:npop
 %    display(pbox(k));
 %end
+[pop, pref] = calcRefPontos(pinf,psup,npop,no,pop,L); % cálculo dos pontos de referência
+%for mi = 1:length(refpontos)
+%    display(refpontos(mi));
+%end
 
 % Cópia dos elementos não dominados da população para o arquivo arqnd
 arqnd = naodominado(pop,L);
@@ -69,14 +79,19 @@ ndbox = pbox;
 ndinf = pinf;
 ndsup = psup;
 ndres = pres;
+%ndref = pref;
+%[arqnd, ndref] = calcRefPontos(ndinf,ndsup,npop,no,arqnd,L);
 
 % Cópia dos elementos não agregados da população para o arquivo arqsq
 %arqsq = naoaglomerado(pop,L);
-arqsq = selecionaDistribuicao(pop,L);
+%arqsq = selecionaDistribuicao(pop,L);
+arqsq = selecionaDistribuicao2(pop,L);
 sqbox = pbox;
 sqinf = pinf;
 sqsup = psup;
 sqres = pres;
+%sqref = pref;
+[arqsq, sqref] = calcRefPontos(sqinf,sqsup,npop,no,arqsq,L);
 %for k = 1:npop
 %    display(sqbox(k).hbox);
 %end
@@ -91,8 +106,10 @@ pm = 0.05;
 while ncal >= 3
     
     % Seleciona os pais para os cruzamentos (um de cada populaçao/arquivo)
-    p1 = seleciona(pop,@compara,L);
-    p2 = seleciona(arqnd,@compara,L);
+    %p1 = seleciona(pop,@compara,L);
+    %p2 = seleciona(arqnd,@compara,L);
+    p1 = seleciona(pop,@compara2,L);
+    p2 = seleciona(arqnd,@compara2,L);
     p3 = seleciona(arqsq,@compdist,L);
     
     % Calcula as probabilidades de cruzamento e mutação
@@ -122,6 +139,7 @@ while ncal >= 3
         
         % Tenta inserir c na população e nos arquivos
         display(c);
+%{
         display(pop);
         %[pop,pinf,psup,] = atualizapop(c,pop,pinf,psup,resolucao,L);
         [pop,pinf,psup,pbox,pres] = atualizapop3(c,pop,pinf,psup,pbox,pres,precisao,L);
@@ -139,8 +157,9 @@ while ncal >= 3
         [arqsq,sqinf,sqsup,sqbox,sqres] = atualizadis3(c,arqsq,sqinf,sqsup,sqbox,sqres,...
                                           npop,precisao,L);
         display(arqsq);                                              
+%}
     end
-    
+  
     % Foram avaliadas as funções objetivo de três indivíduos
     ncal = ncal - 3;
 end
@@ -492,6 +511,91 @@ end
 
 end
 
+function [pop,refpontos] = calcRefPontos(inf,sup,npontos,no,pop,L)
+%REFPONTOS XXX
+%   XXX
+%
+%   Parâmetros de entrada:
+%     - inf: XXX
+%     - sup: XXX
+%     - npontos: XXX
+%     - no: XXX
+%     - pop: XXX
+%     - L: XXX
+%
+%   Parâmetros de saída:
+%     - pop: XXX
+%     - refpontos: XXX
+
+% Observação: o cálculo do número de subdivisões para cada
+% dimensão abaixo pode gerar um número muito grande de pontos
+% de referência para problemas com muitos objetivos. Deve ser
+% estudada uma forma de estabelecer um limite superior para esse
+% número para não comprometer a eficiência do algoritmo.
+n = max(2,round(nthroot(npontos,no))); % nro de subdivisoes por dimensão
+
+npop = size(pop,1);
+
+delta = (sup - inf) / n; % espaçamento dos pontos (por dimensão)
+npontos = (n+1) ^ no; % nro total de pontos de referência
+
+strucponto = struct ('ponto',zeros(1,no), 'n', 0, 'ids',zeros(1,npop));
+refpontos = repmat(strucponto,1,npontos);
+%refpontos = zeros(npontos,no);
+
+% Preenche os pontos de referência
+ponto = inf; % Começa pelo "canto inferior esquerdo"
+for k = 1:npontos
+    %refpontos(k,:) = ponto; % grava o ponto
+    refpontos(k).ponto = ponto; % grava o ponto
+    
+    % Faz incremento em uma das dimensões para o próximo ponto
+    tol = 1e-6;
+    d = 1; % dimensão a incrementar
+    incrementado = 0; % incremento bem sucedido?
+    while(~incrementado)
+        ponto(d) = ponto(d) + delta(d); % incrementa
+        if ponto(d) <= sup(d) + tol % se superou máximo, muda dimensão
+            incrementado = 1;
+        else
+            ponto(d) = inf(d);
+            d = d+1;
+        end
+        
+        if d > no  % segurança
+            break;
+        end
+    end
+end
+
+% Encontra o ponto de referência mais próximo de cada indivíduo
+for i = 1:npop
+    prox = 1;
+    distprox = norm(pop(i,L.COLF) - refpontos(1).ponto);
+    
+    for j = 2:npontos
+        dist = norm(pop(i,L.COLF) - refpontos(j).ponto);
+        if dist < distprox
+            prox = j;
+            distprox = dist;
+        end
+    end
+    
+    % XXX Gravar aqui informações no indivíduo
+    refpontos(prox).n = refpontos(prox).n + 1;
+    refpontos(prox).ids(refpontos(prox).n) = i;
+end
+
+% Grava as informações nos indivíduos
+for k = 1:npontos
+    for i = 1:refpontos(k).n
+        pop(refpontos(k).ids(i), L.COLRF) = k;
+        pop(refpontos(k).ids(i), L.COLNH) = refpontos(k).n;        
+    end
+end
+
+end
+
 function p = seleciona(pop,comp,L)
 %SELECIONA Seleciona um indivíduo da população.
 %   Seleciona um indivíduo para participar dos cruzamentos.
@@ -567,6 +671,52 @@ end
 
 end
 
+function [melhor, pior] = compara2(i1, i2, pop, L)
+%COMPARA Compara dois indivíduos e retorna-os ordenados.
+%   Utiliza critérios normais de comparação:
+%   pareto > fator de nicho> fator de agregação > valor agregado.
+%
+%   Parâmetros de entrada:
+%     - i1: índice do indivíduo 1;
+%     - i2: índice do indivíduo 2;
+%     - pop: população;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - melhor: índice do melhor indivíduo;
+%     - pior: índice do pior indivíduo.
+
+ind1 = pop(i1,:);
+ind2 = pop(i2,:);
+
+if ind1(L.COLPT) < ind2(L.COLPT)
+    melhor = i1;
+    pior = i2;
+elseif ind1(L.COLPT) > ind2(L.COLPT)
+    melhor = i2;
+    pior = i1;
+elseif ind1(L.COLNH) < ind2(L.COLNH)
+    melhor = i1;
+    pior = i2;
+elseif ind2(L.COLNH) < ind1(L.COLNH)
+    melhor = i2;
+    pior = i1;
+elseif ind1(L.COLSQ) < ind2(L.COLSQ)
+    melhor = i1;
+    pior = i2;
+elseif ind1(L.COLSQ) > ind2(L.COLSQ)
+    melhor = i2;
+    pior = i1;
+elseif ind1(L.COLAG) < ind2(L.COLAG)
+    melhor = i1;
+    pior = i2;
+else
+    melhor = i2;
+    pior = i1;
+end
+
+end
+
 function [melhor, pior] = compdist(i1, i2, pop, L)
 %COMPDIST Compara dois indivíduos e retorna-os ordenados.
 %   Utiliza critério alternativo (prioriza distribuição):
@@ -585,6 +735,51 @@ ind1 = pop(i1,:);
 ind2 = pop(i2,:);
 
 if ind1(L.COLSQ) < ind2(L.COLSQ)
+    melhor = i1;
+    pior = i2;
+elseif ind1(L.COLSQ) > ind2(L.COLSQ)
+    melhor = i2;
+    pior = i1;
+elseif ind1(L.COLPT) < ind2(L.COLPT)
+    melhor = i1;
+    pior = i2;
+elseif ind1(L.COLPT) > ind2(L.COLPT)
+    melhor = i2;
+    pior = i1;
+elseif ind1(L.COLAG) < ind2(L.COLAG)
+    melhor = i1;
+    pior = i2;
+else
+    melhor = i2;
+    pior = i1;
+end
+
+end
+
+function [melhor, pior] = compdist2(i1, i2, pop, L)
+%COMPDIST Compara dois indivíduos e retorna-os ordenados.
+%   Utiliza critério alternativo (prioriza distribuição):
+%   fator de nicho > fator de agregação > pareto > valor agregado.
+%
+%   Parâmetros de entrada:
+%     - i1: índice do indivíduo 1;
+%     - i2: índice do indivúduo 2;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - melhor: melhor indivíduo;
+%     - pior: pior indivíduo.
+
+ind1 = pop(i1,:);
+ind2 = pop(i2,:);
+
+if ind1(L.COLNH) < ind2(L.COLNH)
+    melhor = i1;
+    pior = i2;
+elseif ind2(L.COLNH) < ind1(L.COLNH)
+    melhor = i2;
+    pior = i1;
+elseif ind1(L.COLSQ) < ind2(L.COLSQ)
     melhor = i1;
     pior = i2;
 elseif ind1(L.COLSQ) > ind2(L.COLSQ)
@@ -689,6 +884,37 @@ for i = 1:size(popsort,1)
         arqsq(ind,L.COLSQ) = 1;
         ind = ind + 1;
         lastbox = popsort(i,L.COLHY);
+    end
+end
+
+end
+
+function arqsq = selecionaDistribuicao2(pop,L)
+%SelecionaDistribuicao Seleciona os elementos do arquivo de distribuição.
+%   Examina os elementos de uma população e seleciona os melhores de
+%   cada nicho para compor o arquivo de destribuição.
+%
+%   Parâmetros de entrada:
+%     - pop: array contendo a população inicial;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - arqsq: subpopulação de elementos não aglomerados.
+
+popsort = sortrows(pop,[L.COLRF L.COLHY L.COLPT L.COLAG]);
+
+numnichos = length(unique(popsort(:,L.COLRF)));
+arqsq = zeros(numnichos,L.NC);
+
+lastnicho = -1;
+ind = 1;
+
+for i = 1:size(popsort,1)
+    if popsort(i,L.COLRF) ~= lastnicho
+        arqsq(ind,:) = popsort(i,:);
+        arqsq(ind,L.COLNH) = 1;
+        ind = ind + 1;
+        lastnicho = popsort(i,L.COLRF);
     end
 end
 
