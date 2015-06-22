@@ -130,8 +130,7 @@ while ncal >= 3
     filhos = [c1;c2;c3];
     
     % Tratamentos dos filhos
-%    for i = 1:size(filhos,1)
-    for i = 1:1
+    for i = 1:size(filhos,1)
         
         c = filhos(i,:);
         
@@ -147,43 +146,56 @@ while ncal >= 3
         c = agregacao(c,L);
         
         % Tenta inserir c na população e nos arquivos
-        display(c);
-        display(pop);
+        %display(c);
+        %display(pop);
         %[pop,pinf,psup,] = atualizapop(c,pop,pinf,psup,resolucao,L);
         %[pop,pinf,psup,pbox,pres] = atualizapop3(c,pop,pinf,psup,pbox,pres,precisao,L);
         [pop,pbox,pref,pextrapola] = atualizapop4(c,pop,inf,sup,pbox,pref,boxsize,npop,L);
-        display(pop)
-%{
-        display(arqnd);
-        [arqnd,ndinf,ndsup,ndbox,ndres] = atualizadom3(c,arqnd,ndinf,ndsup,ndbox,ndres,...
-                                          npop,precisao,L);
-        display(arqnd);
+        %display(pop)
+
+        %display(arqnd);
+        %[arqnd,ndinf,ndsup,ndbox,ndres] = atualizadom3(c,arqnd,ndinf,ndsup,ndbox,ndres,...
+        %                                  npop,precisao,L);
+        [arqnd,ndbox,ndref,ndextrapola] = atualizadom4(c,arqnd,inf,sup,ndbox,ndref,...
+                                          npop,boxsize,npop,L);
+        %display(arqnd);
         
-        display(arqsq);
+        %display(arqsq);
         %[arqsq,sqinf,sqsup] = atualizadis(c,arqsq,sqinf,sqsup,...
         %                                  npop,resolucao,L);
         %[arqsq,sqinf,sqsup,sqbox] = atualizadis2(c,arqsq,sqinf,sqsup,sqbox,...
         %                                  npop,resolucao,L);
-        [arqsq,sqinf,sqsup,sqbox,sqres] = atualizadis3(c,arqsq,sqinf,sqsup,sqbox,sqres,...
-                                          npop,precisao,L);
-        display(arqsq);                                              
-%}
+        %[arqsq,sqinf,sqsup,sqbox,sqres] = atualizadis3(c,arqsq,sqinf,sqsup,sqbox,sqres,...
+        %                                  npop,precisao,L);
+        [arqsq,sqbox,sqref,sqextrap] = atualizadis4(c,arqsq,inf,sup,sqbox,sqref,...
+                                          npop,boxsize,npop,L);
+        %display(arqsq);                                              
         
         % Algum novo ponto extrapolou o espaço; recalcula
-        if pextrapola
+        if pextrapola || ndextrapola || sqextrap
+            %display('recalculando por extrapolação');
             [inf,sup,boxsize] = calParEspaco(pop,precisao,L);
             [pop, pbox] = hyperbox4(pop,inf,boxsize,L);
             [pop, pref] = calcRefPontos(inf,sup,npop,no,pop,L);
+            pop = pareto(pop,L);
             [arqnd,ndbox] = hyperbox4(arqnd,inf,boxsize,L);
             [arqnd,ndref] = calcRefPontos(inf,sup,npop,no,arqnd,L);
+            arqnd = pareto(arqnd,L);
             [arqsq,sqbox] = hyperbox4(arqsq,inf,boxsize,L);
             [arqsq,sqref] = calcRefPontos(inf,sup,npop,no,arqsq,L);
+            arqsq = selecionaDistribuicao2(arqsq,L);
+            arqsq = pareto(arqsq,L);
+            
+            %display(pop);
+            %display(arqnd);
+            %display(arqsq);
         end
         
     end
   
     % Foram avaliadas as funções objetivo de três indivíduos
     ncal = ncal - 3;
+    display(ncal);
 end
 
 %for i = 1:npop
@@ -234,7 +246,7 @@ end
 
 function pop = pareto(pop,L)
 %PARETO Calcula a fronteira de Pareto.
-%   Para cada indivíduo da polulação, calcula a que fronteira de
+%   Para cada indivíduo da população, calcula a que fronteira de
 %   Pareto ele pertence.
 %   Inspirado em XXX.
 %
@@ -910,6 +922,32 @@ end
 
 end
 
+function [melhor, pior] = comprefs(i1, i2, pop, L)
+%COMPDIST Compara dois indivíduos e retorna-os ordenados.
+%   Utiliza distância a ponto de referência para comparação.
+%
+%   Parâmetros de entrada:
+%     - i1: índice do indivíduo 1;
+%     - i2: índice do indivúduo 2;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - melhor: melhor indivíduo;
+%     - pior: pior indivíduo.
+
+ind1 = pop(i1,:);
+ind2 = pop(i2,:);
+
+if ind1(L.COLDT) < ind2(L.COLDT)
+    melhor = i1;
+    pior = i2;
+else
+    melhor = i2;
+    pior = i1;
+end
+
+end
+
 function box = codifica(hbox,resolucao)
 %CODIFICA Codifica um hyperbox como um valor numérico.
 %   Codifica as coordenadas do hyperbox em um valor numérico único.
@@ -1262,7 +1300,7 @@ function [pop,pbox,pref,extrap] = atualizapop4(c,pop,inf,sup,pbox,pref,boxsize,n
 %     - pbof: XXX
 %     - extrapola: XXX
 
-display('Introdução na população');
+%display('Introdução na população');
 
 % Verifica se indivíduo não existe na população
 %idx = indice(c,pop,L);
@@ -1286,11 +1324,11 @@ if dom.n > 0
     [pop,pbox] = removebox(pop,pr,pbox,L);
     [pop,pref] = removeref(pop,pr,pref,L);
     pop(pr,:) = c;
-    display(['c domina: substitui ', num2str(pr)]);
+    %display(['c domina: substitui ', num2str(pr)]);
 elseif dom.m > 0
     % c é dominado e descartado.
     descartado = 1;
-    display('c dominado: descartado');
+    %display('c dominado: descartado');
 else
     % c não domina nem é dominado:
     % substitui o pior indivíduo da população.
@@ -1301,15 +1339,15 @@ else
     [pop,pref] = removeref(pop,pr,pref,L);
     pop(pr,:) = c;
     % XXX atualiza pbox e pref
-    display(['c não domina nem é dominado: substitui ', num2str(pr)]);
+    %display(['c não domina nem é dominado: substitui ', num2str(pr)]);
 end
 
 if ~descartado
     % c foi inserido na população: refaz os cálculos de dominação
     % e distribuição.
-    display('c inserido (recalcula)');
     pop = pareto(pop,L);
     if ~extrap
+        %display('c inserido (recalcula)');
         ibox = indbox4(pop(pr,:),inf,pbox,boxsize,L);
         if ibox == 0
             % Caiu em novo box; recalcula
@@ -1685,6 +1723,157 @@ end
     
 end
 
+function [arqnd,ndbox,ndref,extrap] = atualizadom4(c,arqnd,inf,sup,ndbox,ndref, ...
+                                           maxpontos,boxsize,npontos,L)
+%ATUALIZAPOP Atualiza o arquivo de dominação com um indivíduo.
+%   Tenta inserir um indivíduo no arquivo de dominação população.
+%   Se o indivíduo não for descartado, refaz os cálculos 
+%   das fronteiras de Pareto e do hyperbox.
+%
+%   Parâmetros de entrada:
+%     - c: indivíduo a inserir;
+%     - arqnd: população (arquivo de dominação);
+%     - inf: limites inferiores do grid para cada dimensão;
+%     - sup: limites superiores do grid para cada dimensão;
+%     - ndbox: boxes do arquivo;
+%     - ndref: XXX
+%     - max: número máximo de elementos em no arquivo;
+%     - boxsize: XXX
+%     - npontos: XXX
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - arqnd: população atualizada.
+%     - ndbox: XXX
+%     - ndref: XXX
+%     - extrap: XXX
+
+%display('Introdução no arquivo de dominação');
+
+extrap = 0;
+
+% Verifica se indivíduo não existe na população
+idx = indice(c,arqnd,L);
+if idx > 0
+    %display('c já existe: descartado');
+    return;
+end
+
+% Calcula os indivíduos de pop dominados e que dominam c.
+dom = dominacao(c,arqnd,L);
+
+extrap = extrapola(c,inf,sup,L);
+descartado = 0;
+
+if dom.m > 0
+    % c é dominado por algum indivíduo do arquivo e é descartado
+    %display('c dominado: descartado');
+    descartado = 1;
+elseif dom.n > 0
+    % c domina indivíduos do arquivo: remove os dominados e insere c
+    %display('c domina: substitui dominados');
+    %display(dom.idn);
+    arqnd = remove(arqnd,dom.idn,dom.n,L);
+    arqnd = [arqnd; c];
+elseif size(arqnd,1) < maxpontos
+    % c não domina nem é dominado e há espaço no arquivo: insere c
+    %display('não domina nem é dominado; há espaço: insere');
+    arqnd = [arqnd; c];
+else
+    % c não domina nem é dominado; não há espaço no arquivo
+    %display('não domina nem é dominado; não há espaço');
+    % Verifica se c estende o grid do arquivo
+    if extrap
+        % Substitui o pior elemento do grid por c
+        %display('c extrapola o grid');
+        pr = pior(arqnd,1:size(arqnd,1),@compara2,L);
+        %display(['substitui ', num2str(pr)]);
+        arqnd(pr,:) = c;
+    else
+        %display('c não extrapola o grid');
+        %display(c);
+        
+        % Encontra o nicho e a distância do elemento
+        [iref,dist] = indref(c,ndref,L);
+        c(L.COLPT) = 1;
+        c(L.COLRF) = iref;
+        c(L.COLDT) = dist;
+
+        % Procura por elementos do mesmo nicho
+        rfinds = find(arqnd(:,L.COLRF) == iref);
+        %display(rfinds);
+        c(L.COLNH) = length(rfinds) + 1;
+
+        % Se houver, encontra o pior e tenta substituir
+        inserido = 0;
+        if ~isempty(rfinds)
+            %display('Tenta substituir no mesmo nicho');
+            rfinds = transpose(rfinds);
+            pr = pior(arqnd,rfinds,@comprefs,L);
+            cpr = arqnd(pr,:);
+            % Compara o pior com c
+            [m,~] = comprefs(1,2,[c;cpr],L);
+            if m == 1
+                % c é melhor: substitui
+                idx = indice(cpr,arqnd,L);
+                %display(['substitui ', num2str(idx)]);
+                arqnd(idx,:) = c;
+                inserido = 1;
+            end
+        end
+        
+        % Se não foi substituído, tenta contra o pior do arquivo
+        if ~inserido
+            %display('Tenta substituir na população');
+            % Encontra o box do indivíduo
+            hy = indbox4(c,inf,ndbox,boxsize,L);
+            %display(hy);
+            % Indivíduos no mesmo hyperbox (índices)
+            hyinds = find(arqnd(:,L.COLHY) == hy);
+            sq = size(hyinds,1) + 1;
+            c(L.COLHY) = hy;
+            c(L.COLSQ) = sq;
+            % Encontra o pior da população
+            pr = pior(arqnd,1:size(arqnd,1),@compara2,L);
+            cpr = arqnd(pr,:);
+            if cpr(L.COLHY) == hy
+                cpr(L.COLSQ) = cpr(L.COLSQ) + 1;
+            end
+            % Compara com o indivíduo
+            [m,~] = compara2(1,2,[c;cpr],L);
+            if m == 1
+                % c é melhor: substitui
+                %display(['substitui ', num2str(pr)]);
+                arqnd(pr,:) = c;
+            else
+                % c é pior: descarta
+                %display('não substitui (descartado)');
+                descartado = 1;
+            end
+        end
+        
+    end
+end
+
+if ~descartado
+    % c foi inserido na população: refaz os cálculos de dominação
+    % e distribuição.
+    if ~extrap
+        %display('c inserido (recalcula)');
+        % Observação: este código pode ser otimizado para realizar as
+        % atualizações estritamente necessárias, tal como foi feito
+        % no caso da população geral.
+        no = max(L.COLF) - min(L.COLF) + 1;
+        arqnd = pareto(arqnd,L);
+        [arqnd,ndbox] = hyperbox4(arqnd,inf,boxsize,L);
+        [arqnd,ndref] = calcRefPontos(inf,sup,npontos,no,arqnd,L);
+    end
+else
+    extrap = 0; % Não considera extrapolação para ponto descartado
+end
+    
+end
+
 function [arqsq,sqinf,sqsup] = atualizadis(c,arqsq,sqinf,sqsup, ...
                                            max,resolucao,L)
 %ATUALIZADIS Atualiza o arquivo de dominação com um indivíduo.
@@ -2014,6 +2203,148 @@ if ~descartado
     [arqsq, sqinf, sqsup, sqbox,sqres] = hyperbox3(arqsq,precisao,L); % cálculo do hyperbox
     %arqsq = naoaglomerado(arqsq,L);
     arqsq = selecionaDistribuicao(arqsq,L);
+end
+    
+end
+
+function [arqsq,sqbox,sqref,extrap] = atualizadis4(c,arqsq,inf,sup,sqbox,sqref, ...
+                                           maxpontos,boxsize,npontos,L)
+%ATUALIZADIS Atualiza o arquivo de dominação com um indivíduo.
+%   Tenta inserir um indivíduo no arquivo de distribuição.
+%   Se o indivíduo não for descartado, refaz os cálculos 
+%   das fronteiras de Pareto e do hyperbox.
+%
+%   Parâmetros de entrada:
+%     - c: indivíduo a inserir;
+%     - arqsq: população (arquivo de distribuição);
+%     - inf: limites inferiores do grid para cada dimensão;
+%     - sup: limites superiores do grid para cada dimensão;
+%     - sqbox: boxes do arquivo;
+%     - sqref: XXX
+%     - maxpontos: número máximo de elementos no arquivo;
+%     - boxsize: XXX
+%     - npontos: número de pontos de referência;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - arqsq: população atualizada.
+%     - sqbox: boxes atualizados;
+%     - sqref: XXX
+%     - extrap: XXX
+
+%display('Introdução no arquivo de distribuição');
+
+extrap = 0;
+
+% Verifica se indivíduo não existe na população
+idx = indice(c,arqsq,L);
+if idx > 0
+    %display('c já existe: descartado');
+    return;
+end
+
+extrap = extrapola(c,inf,sup,L);
+descartado = 0;
+
+if extrap
+    % c estende grid do arquivo: deve ser inserido.
+    %display('c extrapola o grid');
+    if size(arqsq,1) < maxpontos
+        % Arquivo tem espaço: insere c.
+        arqsq = [arqsq; c];
+        %display('arquivo tem espaço: inserido');
+    else
+        % Arquivo está cheio: substitui o pior.
+        pr = pior(arqsq,1:size(arqsq,1),@compdist2,L);
+        arqsq(pr,:) = c;
+        %display(['arquivo cheio: substui ', num2str(pr)]);
+    end
+else
+    % C não estende grid: verifica de deve ser inserido
+    %display('c não extrapola grid');
+    
+    % Calcula o nicho e a distância de c.
+    [iref,dist] = indref(c,sqref,L);
+    c(L.COLRF) = iref;
+    c(L.COLDT) = dist;
+    
+    % Procura por elementos do mesmo nicho
+    rfinds = find(arqsq(:,L.COLRF) == iref);
+    nh = length(rfinds) + 1;
+    c(L.COLNH) = 1; % Se inserido, terá valor 1
+    
+    % Calcula a fronteira de pareto do indivíduo.
+    c(L.COLPT) = indpar(c,arqsq,L);
+
+    if nh == 1
+        % c em referência isolada: deve ser inserido
+        if size(arqsq,1) < maxpontos
+            % Arquivo tem espaço: insere c.
+            arqsq = [arqsq; c];
+            %display('arquivo tem espaço: inserido');
+        else
+            % Arquivo está cheio: substitui o pior.
+            % Encontra o box do indivíduo
+            hy = indbox4(c,inf,sqbox,boxsize,L);
+            % Indivíduos no mesmo hyperbox (índices)
+            hyinds = find(arqsq(:,L.COLHY) == hy);
+            sq = size(hyinds,1) + 1;
+            c(L.COLHY) = hy;
+            c(L.COLSQ) = sq;
+            %Encontra o pior
+            pr = pior(arqsq,1:size(arqsq,1),@compdist2,L);
+            cpr = arqsq(pr,:);
+            if cpr(L.COLHY) == hy
+                cpr(L.COLSQ) = cpr(L.COLSQ) + 1;
+            end
+            % Compara com o indivíduo
+            [m,~] = compdist2(1,2,[c;cpr],L);
+            if m == 1
+                % c é melhor: substitui
+                %display(['substitui ', num2str(pr)]);
+                arqsq(pr,:) = c;
+            else
+                % c é pior: descarta
+                %display('não substitui (descartado)');
+                descartado = 1;
+            end
+        end
+    else
+        % c em nicho ocupado
+        %display('c em nicho ocupado');
+        % Obtém o outro indivíduo do nicho.
+        inref = arqsq(rfinds,:);
+        % Compara as distâncias
+        if c(L.COLDT) < inref(L.COLDT)
+            % c é melhor: substitui
+            %display('substitui ');
+            %display(rfinds);
+            arqsq(rfinds,:) = c;
+        else
+            % c é pior: descarta
+            %display('não substitui (descartado)');
+            descartado = 1;
+        end
+    end
+    
+end
+
+if ~descartado
+    % c foi inserido na população: refaz os cálculos de dominação
+    % e distribuição.
+    if ~extrap
+        %display('c inserido (recalcula)');
+        % Observação: este código pode ser otimizado para realizar as
+        % atualizações estritamente necessárias, tal como foi feito
+        % no caso da população geral.
+        no = max(L.COLF) - min(L.COLF) + 1;
+        arqsq = pareto(arqsq,L);
+        [arqsq,sqbox] = hyperbox4(arqsq,inf,boxsize,L);
+        [arqsq,sqref] = calcRefPontos(inf,sup,npontos,no,arqsq,L);
+        arqsq = selecionaDistribuicao2(arqsq,L);
+    end
+else
+    extrap = 0; % Não considera extrapolação para ponto descartado
 end
     
 end
