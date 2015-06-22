@@ -23,7 +23,8 @@ function [ ps ] = moea_3w( ncal, npop, nvar, no, precisao, objfunc )
 %   - Hyperbox: uma coluna;
 %   - Fator de aglomeração (squeeze factor): uma coluna;
 %   - Ponto de referência: uma coluna;
-%   - Fator de nicho: uma coluna.
+%   - Fator de nicho: uma coluna;
+%   - Distância ao ponto de referência: uma coluna.
 xi = 1; xf = xi+nvar-1;
 fi = xf+1; ff = fi+no-1;
 ag = ff+1;
@@ -32,7 +33,8 @@ hy = pt+1;
 sq = hy+1;
 rf = sq+1;
 nh = rf+1;
-nc = nh;
+dt = nh+1;
+nc = dt;
 
 L.COLX  = xi:xf;
 L.COLF  = fi:ff;
@@ -42,6 +44,7 @@ L.COLHY = hy;
 L.COLSQ = sq;
 L.COLRF = rf;
 L.COLNH = nh;
+L.COLDT = dt;
 L.NC = nc;
 
 % Dados iniciais da população: faixa das variáveis e 
@@ -64,21 +67,25 @@ pop = pareto(pop,L);    % cálculo da fronteira de pareto
 %resolucao = 5; % XXX Parâmetro?
 %[pop, pinf, psup] = hyperbox(pop,resolucao,L); % cálculo do hyperbox
 %[pop, pinf, psup, pbox] = hyperbox2(pop,resolucao,L); % cálculo do hyperbox
-[pop, pinf, psup, pbox,pres] = hyperbox3(pop,precisao,L); % cálculo do hyperbox
+[inf,sup,boxsize] = calParEspaco(pop,precisao,L); % XXX
+%[pop, pinf, psup, pbox,pres] = hyperbox3(pop,precisao,L); % cálculo do hyperbox
+[pop, pbox] = hyperbox4(pop,inf,boxsize,L); % cálculo do hyperbox
 %for k = 1:npop
 %    display(pbox(k));
 %end
-[pop, pref] = calcRefPontos(pinf,psup,npop,no,pop,L); % cálculo dos pontos de referência
-%for mi = 1:length(refpontos)
-%    display(refpontos(mi));
+[pop, pref] = calcRefPontos(inf,sup,npop,no,pop,L); % cálculo dos pontos de referência
+%for mi = 1:length(pref)
+%    display(pref(mi));
 %end
 
 % Cópia dos elementos não dominados da população para o arquivo arqnd
 arqnd = naodominado(pop,L);
-ndbox = pbox;
-ndinf = pinf;
-ndsup = psup;
-ndres = pres;
+[arqnd,ndbox] = hyperbox4(arqnd,inf,boxsize,L);
+[arqnd,ndref] = calcRefPontos(inf,sup,npop,no,arqnd,L); % cálculo dos pontos de referência
+%ndbox = pbox;
+%ndinf = pinf;
+%ndsup = psup;
+%ndres = pres;
 %ndref = pref;
 %[arqnd, ndref] = calcRefPontos(ndinf,ndsup,npop,no,arqnd,L);
 
@@ -86,12 +93,14 @@ ndres = pres;
 %arqsq = naoaglomerado(pop,L);
 %arqsq = selecionaDistribuicao(pop,L);
 arqsq = selecionaDistribuicao2(pop,L);
-sqbox = pbox;
-sqinf = pinf;
-sqsup = psup;
-sqres = pres;
+[arqsq,sqbox] = hyperbox4(arqsq,inf,boxsize,L);
+[arqsq,sqref] = calcRefPontos(inf,sup,npop,no,arqsq,L); % cálculo dos pontos de referência
+%sqbox = pbox;
+%sqinf = pinf;
+%sqsup = psup;
+%sqres = pres;
 %sqref = pref;
-[arqsq, sqref] = calcRefPontos(sqinf,sqsup,npop,no,arqsq,L);
+%[arqsq, sqref] = calcRefPontos(sqinf,sqsup,npop,no,arqsq,L);
 %for k = 1:npop
 %    display(sqbox(k).hbox);
 %end
@@ -104,7 +113,6 @@ pm = 0.05;
 
 % Laço principal
 while ncal >= 3
-    
     % Seleciona os pais para os cruzamentos (um de cada populaçao/arquivo)
     %p1 = seleciona(pop,@compara,L);
     %p2 = seleciona(arqnd,@compara,L);
@@ -122,7 +130,8 @@ while ncal >= 3
     filhos = [c1;c2;c3];
     
     % Tratamentos dos filhos
-    for i = 1:size(filhos,1)
+%    for i = 1:size(filhos,1)
+    for i = 1:1
         
         c = filhos(i,:);
         
@@ -139,11 +148,12 @@ while ncal >= 3
         
         % Tenta inserir c na população e nos arquivos
         display(c);
-%{
         display(pop);
         %[pop,pinf,psup,] = atualizapop(c,pop,pinf,psup,resolucao,L);
-        [pop,pinf,psup,pbox,pres] = atualizapop3(c,pop,pinf,psup,pbox,pres,precisao,L);
+        %[pop,pinf,psup,pbox,pres] = atualizapop3(c,pop,pinf,psup,pbox,pres,precisao,L);
+        [pop,pbox,pref,pextrapola] = atualizapop4(c,pop,inf,sup,pbox,pref,boxsize,npop,L);
         display(pop)
+%{
         display(arqnd);
         [arqnd,ndinf,ndsup,ndbox,ndres] = atualizadom3(c,arqnd,ndinf,ndsup,ndbox,ndres,...
                                           npop,precisao,L);
@@ -158,6 +168,18 @@ while ncal >= 3
                                           npop,precisao,L);
         display(arqsq);                                              
 %}
+        
+        % Algum novo ponto extrapolou o espaço; recalcula
+        if pextrapola
+            [inf,sup,boxsize] = calParEspaco(pop,precisao,L);
+            [pop, pbox] = hyperbox4(pop,inf,boxsize,L);
+            [pop, pref] = calcRefPontos(inf,sup,npop,no,pop,L);
+            [arqnd,ndbox] = hyperbox4(arqnd,inf,boxsize,L);
+            [arqnd,ndref] = calcRefPontos(inf,sup,npop,no,arqnd,L);
+            [arqsq,sqbox] = hyperbox4(arqsq,inf,boxsize,L);
+            [arqsq,sqref] = calcRefPontos(inf,sup,npop,no,arqsq,L);
+        end
+        
     end
   
     % Foram avaliadas as funções objetivo de três indivíduos
@@ -300,6 +322,34 @@ while front(f).n ~= 0
 %    display(front(f).ids);
     f = f + 1;
 end
+
+end
+
+function [inf, sup, boxsize] = calParEspaco(pop,precisao,L)
+%CALCPARESPACO Calcula parâmetros do espaço de pontos.
+%   XXX
+%
+%   Parâmetros de entrada:
+%     - pop: array contendo a população;
+%     - precisao: XXX
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - inf: limites inferiores do grid para cada dimensão;
+%     - sup: limites superiores do grid para cada dimensão;
+%     - boxsize: XXX
+
+% Encontra os valores máximos e mínimos das funções objetivo.
+zmax = max(pop(:,L.COLF),[],1);
+zmin = min(pop(:,L.COLF),[],1);
+
+resolucao = calcResolucao(pop,precisao,L);
+
+% Encontra os limites superiores e inferiores e o tamanho da caixa
+delta = (zmax - zmin) ./ (2 * resolucao);
+inf = zmin - delta;
+sup = zmax + delta;
+boxsize = (sup - inf) ./ resolucao;
 
 end
 
@@ -511,6 +561,64 @@ end
 
 end
 
+function [pop, pbox] = hyperbox4(pop,inf,boxsize,L)
+%HYPERBOX Calcula o hyperbox de cada indivíduo.
+%   Para cada indivíduo da população, calcula o hyperbox ao qual
+%   pertence e o fator de aglomeração.
+%
+%   Parâmetros de entrada:
+%     - pop: array contendo a população;
+%     - inf: XXX;
+%     - boxsize: XXX;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - pop: população atualizados;
+%     - pbox: vetor de estruturas com as informações dos boxes:
+%             hbox: coordenadas do box;
+%             n: número de elementos do box;
+%             ids: índices dos indivíduos do box.
+
+% Calcula o hyperbox (para cada dimensão) e o fator de aglomeracao
+npop = size(pop,1); % número de indivíduos
+no = max(L.COLF) - min(L.COLF) + 1; % número de funções objetivo
+hbox = zeros(npop,no);
+indbox = struct('hbox',ones(1,no) * -1, 'n', 0, 'ids',zeros(1,npop));
+pbox = repmat(indbox,1,npop);
+p = 0;
+for i = 1:npop
+    hbox(i,:) = floor((pop(i,L.COLF) - inf) ./ boxsize);
+    encontrado = 0;
+    for k = 1:p
+        if isequal(hbox(i,:), pbox(k).hbox)
+            encontrado = 1;
+            pop(i,L.COLHY) = k;
+            pbox(k).n = pbox(k).n + 1;
+            pbox(k).ids(pbox(k).n) = i;
+            break;
+        end
+    end
+    
+    if ~encontrado
+        p = p + 1;
+        pop(i,L.COLHY) = p;
+        pbox(p).hbox = hbox(i,:);
+        pbox(p).n = 1;
+        pbox(p).ids(pbox(p).n) = i;
+    end
+end
+%display(hbox);
+
+% Registra o valor de aglomeração para cada indivíduo.
+for k = 1:p
+    %display(pbox(k));
+    for j = 1:pbox(k).n
+        pop(pbox(k).ids(j),L.COLSQ) = pbox(k).n;
+    end
+end
+
+end
+
 function [pop,refpontos] = calcRefPontos(inf,sup,npontos,no,pop,L)
 %REFPONTOS XXX
 %   XXX
@@ -582,6 +690,7 @@ for i = 1:npop
     end
     
     % XXX Gravar aqui informações no indivíduo
+    pop(i,L.COLDT) = distprox;
     refpontos(prox).n = refpontos(prox).n + 1;
     refpontos(prox).ids(refpontos(prox).n) = i;
 end
@@ -892,7 +1001,7 @@ end
 function arqsq = selecionaDistribuicao2(pop,L)
 %SelecionaDistribuicao Seleciona os elementos do arquivo de distribuição.
 %   Examina os elementos de uma população e seleciona os melhores de
-%   cada nicho para compor o arquivo de destribuição.
+%   cada nicho para compor o arquivo de distribuição.
 %
 %   Parâmetros de entrada:
 %     - pop: array contendo a população inicial;
@@ -901,7 +1010,7 @@ function arqsq = selecionaDistribuicao2(pop,L)
 %   Parâmetros de saída:
 %     - arqsq: subpopulação de elementos não aglomerados.
 
-popsort = sortrows(pop,[L.COLRF L.COLHY L.COLPT L.COLAG]);
+popsort = sortrows(pop,[L.COLRF L.COLDT L.COLHY L.COLPT L.COLAG]);
 
 numnichos = length(unique(popsort(:,L.COLRF)));
 arqsq = zeros(numnichos,L.NC);
@@ -1128,6 +1237,105 @@ if ~descartado
     display('c inserido (recalcula)');
     pop = pareto(pop,L);
     [pop, pinf, psup, pbox, pres] = hyperbox3(pop,precisao,L); % cálculo do hyperbox
+end
+
+end
+
+function [pop,pbox,pref,extrap] = atualizapop4(c,pop,inf,sup,pbox,pref,boxsize,npontos,L)
+%ATUALIZAPOP Atualiza a população com um indivíduo.
+%   Tenta inserir um indivíduo em uma população. XXX
+%
+%   Parâmetros de entrada:
+%     - c: indivíduo a inserir;
+%     - pop: população;
+%     - inf: limites inferiores do grid para cada dimensão;
+%     - sup: limites superiores do grid para cada dimensão;
+%     - pbox: box da população;
+%     - pref: XXX
+%     - boxsize: XXX
+%     - npontos: XXX
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - pop: população atualizada.
+%     - pbox: XXX
+%     - pbof: XXX
+%     - extrapola: XXX
+
+display('Introdução na população');
+
+% Verifica se indivíduo não existe na população
+%idx = indice(c,pop,L);
+%if idx > 0
+%    display('c já existe: descartado');
+%    return;
+%end
+
+% Calcula os indivíduos de pop dominados e que dominam c.
+dom = dominacao(c,pop,L);
+
+extrap = extrapola(c,inf,sup,L);
+descartado = 0;
+
+if dom.n > 0
+    % c domina um grupo de indivíduos:
+    % substitui o pior deles por c.
+    inds = dom.idn(1:dom.n);
+    pr = pior(pop,inds,@compara2,L);
+    % XXX atualizar pbox e pref
+    [pop,pbox] = removebox(pop,pr,pbox,L);
+    [pop,pref] = removeref(pop,pr,pref,L);
+    pop(pr,:) = c;
+    display(['c domina: substitui ', num2str(pr)]);
+elseif dom.m > 0
+    % c é dominado e descartado.
+    descartado = 1;
+    display('c dominado: descartado');
+else
+    % c não domina nem é dominado:
+    % substitui o pior indivíduo da população.
+    inds = 1:size(pop,1);
+    pr = pior(pop,inds,@compara2,L);
+    % XXX atualizar pbox e pref
+    [pop,pbox] = removebox(pop,pr,pbox,L);
+    [pop,pref] = removeref(pop,pr,pref,L);
+    pop(pr,:) = c;
+    % XXX atualiza pbox e pref
+    display(['c não domina nem é dominado: substitui ', num2str(pr)]);
+end
+
+if ~descartado
+    % c foi inserido na população: refaz os cálculos de dominação
+    % e distribuição.
+    display('c inserido (recalcula)');
+    pop = pareto(pop,L);
+    if ~extrap
+        ibox = indbox4(pop(pr,:),inf,pbox,boxsize,L);
+        if ibox == 0
+            % Caiu em novo box; recalcula
+            [pop, pbox] = hyperbox4(pop,inf,boxsize,L);
+        else
+            % Caiu em box existente; atualiza
+            [pop,pbox] = inserebox(pop,pr,inf,pbox,boxsize,L);
+            pop(pr,L.COLHY) = ibox;
+            pop(pr,L.COLSQ) = pbox(ibox).n;
+        end
+        
+        [iref,dist] = indref(pop(pr,:),pref,L);
+        if iref == 0
+            % Caiu em novo ponto de referência; recalcula
+            no = max(L.COLF) - min(L.COLF) + 1;
+            [pop, pref] = calcRefPontos(inf,sup,npontos,no,pop,L);
+        else
+            % Caiu em ponto existente; atualiza
+            [pop,pref] = insereref(pop,pr,pref,L);
+            pop(pr,L.COLRF) = iref;
+            pop(pr,L.COLNH) = pref(iref).n;
+            pop(pr,L.COLDT) = dist;
+        end
+    end
+else
+    extrap = 0; % Não considera extrapolação para ponto descartado
 end
 
 end
@@ -2023,6 +2231,212 @@ function hb = indbox3(c,inf,sup,boxes,resolucao,L)
   %hb = codifica(hbox,resolucao);
   hb = ind;
   
+end
+
+function [rf,dist] = indref(c,refs,L)
+%INDREF Calcula o ponto de referência mais próximo de um indivíduo.
+%   XXX
+%
+%   Parâmetros de entrada:
+%     - c: indivíduo a verificar;
+%     - refs: pontos de referência da população
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - rf: ponto de referência do indivíduo
+  
+npontos = length(refs);
+
+prox = 1;
+distprox = norm(c(L.COLF) - refs(1).ponto);
+    
+for j = 2:npontos
+    dist = norm(c(L.COLF) - refs(j).ponto);
+    if dist < distprox
+        prox = j;
+        distprox = dist;
+    end
+end
+    
+rf = prox;
+dist = distprox;
+
+end
+
+function hb = indbox4(c,inf,boxes,boxsize,L)
+%INDBOX Calcula o hyperbox de um indivíduo.
+%   Encontra o hyperbox ocupado por um indivíduo em uma determinada
+%   população.
+%
+%   Parâmetros de entrada:
+%     - c: indivíduo a verificar;
+%     - inf: limites inferiores do grid (para todas as dimensões);
+%     - sup: limites superiores do grid (para todas as dimensões);
+%     - boxes: boxes da população
+%     - resolucao: tamanho do grid (o mesmo para todas as dimensões);
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - hb: hyperbox do indivíduo
+  
+  hbox = floor((c(L.COLF) - inf) ./ boxsize);
+  
+  ind = 0;
+  for k = 1:length(boxes)
+      if boxes(k).hbox == hbox
+          ind = k;
+          break
+      end
+  end
+  
+  %hb = codifica(hbox,resolucao);
+  hb = ind;
+  
+end
+
+function [pop,ref] = insereref(pop,ind,ref,L)
+%INSEREBOX Insere um indivíduo em um ponto de referência.
+%   Insere um indivíduo em um ponto de referência e atualiza os dados
+%   do ponto e dos indivíduos ligados a ele.
+%
+%   Parâmetros de entrada:
+%     - pop: população;
+%     - ind: índice do indivíduo na população;
+%     - ref: pontos de referência da população
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - pop: XXX
+%     - ref: pontos de referência atualizados.
+
+c = pop(ind,:);
+
+[iref,dist] = indref(c,ref,L);
+
+ref(iref).n = ref(iref).n + 1;
+ref(iref).ids(ref(iref).n) = ind;
+
+for i = 1:ref(iref).n
+    pop(ref(iref).ids(i), L.COLNH) = ref(iref).n; 
+end
+
+pop(ind,L.COLDT) = dist;
+
+end
+
+function [pop,ref] = removeref(pop,ind,ref,L)
+%REMOVEBOX Remove um indivíduo de um ponto de referência.
+%   Remove um indivíduo de um ponto de referência e atualiza os dados
+%   do ponto.
+%
+%   Parâmetros de entrada:
+%     - pop: população;
+%     - ind: índice do indivíduo na população;
+%     - ref: pontos de referência da população;
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - pop: XXX
+%     - ref: pontos de referência atualizados.
+
+iref = (pop(ind,L.COLRF));
+for i = 1:ref(iref).n
+    if ref(iref).ids(i) == ind
+        break;
+    end
+end
+
+for j = (i+1):ref(iref).n
+    ref(iref).ids(j-1) = ref(iref).ids(j);
+end
+
+ref(iref).n = ref(iref).n - 1;
+
+for i = 1:ref(iref).n
+    pop(ref(iref).ids(i),L.COLNH) = ref(iref).n;
+end
+
+end
+
+function [pop,box] = inserebox(pop,ind,inf,box,boxsize,L)
+%INSEREBOX Insere um indivíduo em um box.
+%   Insere um indivíduo em um box e atualiza os dados do box.
+%
+%   Parâmetros de entrada:
+%     - pop: população;
+%     - ind: índice do indivíduo na população;
+%     - inf: XXX
+%     - box: boxes da população
+%     - boxsize: XXX
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - pop: XXX
+%     - box: boxes atualizados.
+
+c = pop(ind,:);
+
+ibox = indbox4(c,inf,box,boxsize,L);
+
+box(ibox).n = box(ibox).n + 1;
+box(ibox).ids(box(ibox).n) = ind;
+
+for i = 1:box(ibox).n
+    pop(box(ibox).ids(i), L.COLSQ) = box(ibox).n; 
+end
+
+end
+
+function [pop,box] = removebox(pop,ind,box,L)
+%REMOVEBOX Remove um indivíduo de uma box.
+%   Remove um indivíduo de um box e atualiza os dados do box.
+%
+%   Parâmetros de entrada:
+%     - pop: população;
+%     - ind: índice do indivíduo na população;
+%     - box: boxes da população
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - pop: XXX
+%     - box: boxes atualizados.
+
+indbox = (pop(ind,L.COLHY));
+for i = 1:box(indbox).n
+    if box(indbox).ids(i) == ind
+        break;
+    end
+end
+
+for j = (i+1):box(indbox).n
+    box(indbox).ids(j-1) = box(indbox).ids(j);
+end
+
+box(indbox).n = box(indbox).n - 1;
+
+for i = 1:box(indbox).n
+    pop(box(indbox).ids(i),L.COLSQ) = box(indbox).n;
+end
+
+end
+
+function box = substituibox(pop,ind1,ind2,box,L)
+%SUBSTITUIBOX Substitui um indivíduo por outro em um box.
+%   Substitui um indivíduo por outro em um box e atualiza os dados do box.
+%
+%   Parâmetros de entrada:
+%     - pop: população;
+%     - ind1: índice do indivíduo que substitui;
+%     - ind2: índice do indivíduo que substituído;
+%     - box: boxes da população
+%     - L: layout de um indivíduo.
+%
+%   Parâmetros de saída:
+%     - box: boxes atualizados.
+
+box = removebox(pop,ind2,box,L);
+box = inserebox(pop,ind1,box,L);
+
 end
 
 function res = calcResolucao(pop,precisao,L)
