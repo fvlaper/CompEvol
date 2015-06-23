@@ -1,5 +1,5 @@
     % dtlz1
-ncal = 3680;
+ncal = 368;
 npop = 92;
 nvar = 7;
 no = 3;
