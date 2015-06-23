@@ -12,8 +12,6 @@ end
 
 nvar = n_obj + k - 1;
 
-display(nvar);
-
 if n_obj == 3
     npop = 92;
 else

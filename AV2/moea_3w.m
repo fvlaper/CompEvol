@@ -342,7 +342,6 @@ end
 
 % Registra o valor de aglomeração para cada indivíduo.
 for k = 1:p
-    %display(pbox(k));
     for j = 1:pbox(k).n
         pop(pbox(k).ids(j),L.COLSQ) = pbox(k).n;
     end
@@ -757,7 +756,6 @@ extrap = 0;
 % Verifica se indivíduo não existe na população
 idx = indice(c,arqnd,L);
 if idx > 0
-    %display('c já existe: descartado');
     return;
 end
 
@@ -888,7 +886,6 @@ extrap = 0;
 % Verifica se indivíduo não existe na população
 idx = indice(c,arqsq,L);
 if idx > 0
-    %display('c já existe: descartado');
     return;
 end
 
@@ -1592,10 +1589,6 @@ x = x(:);
 
 n = length(x);
 k = n - m + 1;
-
-%display(['n = ', num2str(n)]);
-%display(['m = ', num2str(m)]);
-%display(['k = ', num2str(k)]);
 
 s = 0;
 for i = m:n
