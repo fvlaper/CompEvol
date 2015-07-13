@@ -1,7 +1,7 @@
-n_aval = 36800;
+n_aval = 127200;
 problem = 1; % 1 = DTLZ1; 2 = DTLZ2;
-n_obj = 3;
-n_exec = 5;
+n_obj = 5;
+n_exec = 10;
 
 [ind_best, aval_best, IGD_best, IGD_m, ind_pior, aval_pior, IGD_pior] = Flavio(n_aval, problem, n_obj, n_exec);
 
